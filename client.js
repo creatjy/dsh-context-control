@@ -346,10 +346,9 @@ window.__ModuleLoader__.load({
     }
 
     function CapRow({ entry, mode, own, busy, scopeLabel, onSet, onReset }) {
-      const readOnly = entry.readOnly === true;
       return h(
         "div",
-        { className: `cc-cap is-${mode}${readOnly ? " is-readonly" : ""}` },
+        { className: `cc-cap is-${mode}` },
         h(
           "div",
           { className: "cc-cap-main" },
@@ -366,23 +365,16 @@ window.__ModuleLoader__.load({
           { className: "cc-num", title: `当前档位实际发送 ≈${formatTokens(tokenForMode(entry, mode))} / 全量 ≈${formatTokens(entry.tokens ?? 0)}` },
           `≈${formatTokens(tokenForMode(entry, mode))}`,
         ),
-        readOnly
-          ? h("span", {
-              className: "cc-seg is-readonly",
-              title: "来自磁盘技能目录的只读条目；没有可写的目录段，不能在这里开关",
-            }, "只读")
-          : h(CapSeg, { mode, busy, onSet }),
-        readOnly
-          ? h("span", { className: "cc-link is-muted", title: "来自磁盘技能目录" }, "磁盘")
-          : own
-            ? h("button", {
-                type: "button",
-                className: "cc-link",
-                disabled: busy,
-                title: "撤掉本项目的覆盖，回到继承来的档位",
-                onClick: onReset,
-              }, "继承")
-            : h("span", { className: "cc-link is-muted", title: "沿用父项目" }, "继承"),
+        h(CapSeg, { mode, busy, onSet }),
+        own
+          ? h("button", {
+              type: "button",
+              className: "cc-link",
+              disabled: busy,
+              title: "撤掉本项目的覆盖，回到继承来的档位",
+              onClick: onReset,
+            }, "继承")
+          : h("span", { className: "cc-link is-muted", title: "沿用父项目" }, "继承"),
       );
     }
 
@@ -391,8 +383,6 @@ window.__ModuleLoader__.load({
       const brief = modes.filter((mode) => mode === "brief").length;
       const hidden = modes.filter((mode) => mode === "hidden").length;
       const on = entries.length - brief - hidden;
-      const readOnly = entries.filter((entry) => entry.readOnly === true).length;
-      const canBulk = entries.some((entry) => entry.readOnly !== true);
       const tokens = entries.reduce((sum, entry) => sum + (entry.tokens ?? 0), 0);
       const offTokens = entries.reduce(
         (sum, entry) => sum + (modeOfCaps(caps, entry.key) === "on" ? 0 : entry.tokens ?? 0),
@@ -404,8 +394,7 @@ window.__ModuleLoader__.load({
         h("button", {
           type: "button",
           className: "cc-btn is-mini",
-          disabled: busy || !canBulk,
-          title: canBulk ? undefined : "只读技能没有可写的目录段",
+          disabled: busy,
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -415,8 +404,7 @@ window.__ModuleLoader__.load({
         h("button", {
           type: "button",
           className: "cc-btn is-mini",
-          disabled: busy || !canBulk,
-          title: canBulk ? undefined : "只读技能没有可写的目录段",
+          disabled: busy,
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -424,13 +412,12 @@ window.__ModuleLoader__.load({
           },
         }, "全关"),
       );
-      const pills = brief || hidden || readOnly || offTokens
+      const pills = brief || hidden || offTokens
         ? h(
             "span",
             { className: "cc-pills" },
             brief ? h("span", { className: "cc-pill is-brief" }, `简介 ${brief}`) : null,
             hidden ? h("span", { className: "cc-pill is-hidden" }, `隐藏 ${hidden}`) : null,
-            readOnly ? h("span", { className: "cc-pill" }, `只读 ${readOnly}`) : null,
             offTokens ? h("span", { className: "cc-pill" }, `少发 ≈${formatTokens(offTokens)}`) : null,
           )
         : null;
@@ -1193,7 +1180,6 @@ window.__ModuleLoader__.load({
       const [leafQuery, setLeafQuery] = useState("");
       const [leafStatus, setLeafStatus] = useState("all");
       const [tab, setTab] = useState("parts");
-      const [inlineAi, setInlineAi] = useState(null);
 
       const load = useCallback(async () => {
         try {
@@ -1246,62 +1232,12 @@ window.__ModuleLoader__.load({
         [load],
       );
 
-      const askInline = async (itemId, name) => {
-        setInlineAi({ itemId, name, loading: true, suggestion: null, error: "" });
-        const result = await act({ action: "aiSuggest", scope: "item", itemId });
-        const suggestion = result?.suggestion ?? null;
-        setInlineAi((current) => current && current.itemId === itemId
-          ? { ...current, loading: false, suggestion, error: suggestion ? "" : (result?.message || "没有拿到建议") }
-          : current);
-      };
-      const applyInline = async () => {
-        const current = inlineAi;
-        const suggestion = current?.suggestion;
-        if (!suggestion) return;
-        const item = suggestion.items.find((entry) => entry.id === current.itemId);
-        if (!item) return;
-        const result = await act({ action: "aiApply", suggestionId: suggestion.id, itemIds: [item.id], confirm: true });
-        if (result?.ok) {
-          setInlineAi({ ...current, suggestion: null, applied: true, undoToken: result.undoToken || "" });
-        }
-      };
-      const undoInline = async () => {
-        if (!inlineAi?.undoToken) return;
-        const result = await act({ action: "aiUndo", undoToken: inlineAi.undoToken });
-        if (result?.ok) setInlineAi(null);
-      };
-      const inlineView = () => {
-        if (!inlineAi) return null;
-        const suggestion = inlineAi.suggestion;
-        const item = suggestion?.items?.find((entry) => entry.id === inlineAi.itemId);
-        return h("div", { className: "cc-ai-inline" },
-          h("div", { className: "cc-ai-inline-head" },
-            h("b", null, inlineAi.name || inlineAi.itemId),
-            h("span", { className: "cc-ai-note" }, "单条建议 · 不影响其他项"),
-            h("button", { type: "button", className: "cc-link", onClick: () => setInlineAi(null) }, "关闭"),
-          ),
-          inlineAi.loading ? h("div", { className: "cc-ai-note" }, "分析这一项…")
-            : inlineAi.applied ? h("div", { className: "cc-ai-inline-row" },
-                h("span", { className: "cc-alert is-ok" }, "已应用"),
-                inlineAi.undoToken ? h("button", { type: "button", className: "cc-btn is-ghost is-mini", onClick: () => void undoInline() }, "撤销") : null,
-              )
-            : suggestion && item ? h("div", { className: "cc-ai-inline-row" },
-                h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : "保留"),
-                h("span", { className: "cc-ai-why" }, item.reason || ""),
-                item.savedTokens ? h("span", { className: "cc-ai-save" }, `−${formatTokens(item.savedTokens)}`) : null,
-                h("button", { type: "button", className: "cc-btn is-mini", disabled: busy, onClick: () => void applyInline() }, "应用这一项"),
-              )
-            : h("div", { className: "cc-ai-warn" }, inlineAi.error || suggestion?.warnings?.[0] || "这一项没有可执行建议。"),
-        );
-      };
-
       const mode = useMemo(() => {
         if (!state) return null;
         return state.modes.find((item) => item.id === state.activeModeId) ?? state.modes[0];
       }, [state]);
 
       const rules = mode?.rules ?? { sections: {}, contexts: {}, tools: {} };
-      const aiEnabled = state?.ai?.enabled === true;
       const ruleFor = (kind, name) => rules[kind]?.[name] ?? null;
 
       const toggle = (kind, name, next) =>
@@ -1899,7 +1835,6 @@ window.__ModuleLoader__.load({
       const [done, setDone] = useState("");
       const [loading, setLoading] = useState(false);
       const [aiOpen, setAiOpen] = useState(false);
-      const [inlineAi, setInlineAi] = useState(null);
       // 全局筛选：只作用于除概览外的页签，切页不丢；关闭弹窗时清空。
       const [popQuery, setPopQuery] = useState("");
       const [popStatus, setPopStatus] = useState("all");
@@ -2006,53 +1941,6 @@ window.__ModuleLoader__.load({
         [load],
       );
 
-      const askInline = async (itemId, name) => {
-        setInlineAi({ itemId, name, loading: true, suggestion: null, error: "" });
-        const result = await act({ action: "aiSuggest", scope: "item", itemId, writeScope: "session" });
-        const suggestion = result?.suggestion ?? null;
-        setInlineAi((current) => current && current.itemId === itemId
-          ? { ...current, loading: false, suggestion, error: suggestion ? "" : (result?.message || "没有拿到建议") }
-          : current);
-      };
-      const applyInline = async () => {
-        const current = inlineAi;
-        const suggestion = current?.suggestion;
-        if (!suggestion) return;
-        const item = suggestion.items.find((entry) => entry.id === current.itemId);
-        if (!item) return;
-        const result = await act({ action: "aiApply", suggestionId: suggestion.id, itemIds: [item.id], confirm: true });
-        if (result?.ok) setInlineAi({ ...current, suggestion: null, applied: true, undoToken: result.undoToken || "" });
-      };
-      const undoInline = async () => {
-        if (!inlineAi?.undoToken) return;
-        const result = await act({ action: "aiUndo", undoToken: inlineAi.undoToken });
-        if (result?.ok) setInlineAi(null);
-      };
-      const inlineView = () => {
-        if (!inlineAi) return null;
-        const suggestion = inlineAi.suggestion;
-        const item = suggestion?.items?.find((entry) => entry.id === inlineAi.itemId);
-        return h("div", { className: "cc-ai-inline" },
-          h("div", { className: "cc-ai-inline-head" },
-            h("b", null, inlineAi.name || inlineAi.itemId),
-            h("span", { className: "cc-ai-note" }, "单条建议 · 只写本会话"),
-            h("button", { type: "button", className: "cc-link", onClick: () => setInlineAi(null) }, "关闭"),
-          ),
-          inlineAi.loading ? h("div", { className: "cc-ai-note" }, "分析这一项…")
-            : inlineAi.applied ? h("div", { className: "cc-ai-inline-row" },
-                h("span", { className: "cc-alert is-ok" }, "已应用"),
-                inlineAi.undoToken ? h("button", { type: "button", className: "cc-btn is-ghost is-mini", onClick: () => void undoInline() }, "撤销") : null,
-              )
-            : suggestion && item ? h("div", { className: "cc-ai-inline-row" },
-                h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : "保留"),
-                h("span", { className: "cc-ai-why" }, item.reason || ""),
-                item.savedTokens ? h("span", { className: "cc-ai-save" }, `−${formatTokens(item.savedTokens)}`) : null,
-                h("button", { type: "button", className: "cc-btn is-mini", disabled: busy, onClick: () => void applyInline() }, "应用这一项"),
-              )
-            : h("div", { className: "cc-ai-warn" }, inlineAi.error || suggestion?.warnings?.[0] || "这一项没有可执行建议。"),
-        );
-      };
-
       const mode = useMemo(() => {
         if (!state) return null;
         return state.modes.find((item) => item.id === state.activeModeId) ?? state.modes[0];
@@ -2078,7 +1966,6 @@ window.__ModuleLoader__.load({
       // 胶囊里的技能/MCP/插件开关是「本会话」层：叠在项目继承之上，不写回项目。
       const sessionCaps = state?.sessionCaps ?? {};
       const caps = { ...(project?.resolvedCaps ?? {}), ...sessionCaps };
-      const aiEnabled = state?.ai?.enabled === true;
       const kinds = state?.capabilities ?? {};
       // 系统提示段自己没有 capKey，按能力目录反查「这段属于哪个能力」。
       const sectionCaps = {};
@@ -2403,7 +2290,6 @@ window.__ModuleLoader__.load({
         return h(
           "div",
           null,
-          inlineView(),
           entries.length === 0
             ? h(
                 "div",
@@ -2418,12 +2304,11 @@ window.__ModuleLoader__.load({
                   "div",
                   { className: "cc-cap-list" },
                       shown.map((entry) => {
-                        const readOnly = entry.readOnly === true;
-                        const value = readOnly ? "on" : modeOfCaps(caps, entry.key);
-                        const own = !readOnly && Object.prototype.hasOwnProperty.call(sessionCaps, entry.key);
+                        const value = modeOfCaps(caps, entry.key);
+                        const own = Object.prototype.hasOwnProperty.call(sessionCaps, entry.key);
                         return h(
                           "div",
-                          { key: entry.key, className: `cc-cap is-${value} is-compact${readOnly ? " is-readonly" : ""}` },
+                          { key: entry.key, className: `cc-cap is-${value} is-compact` },
                           h(
                             "div",
                             { className: "cc-cap-main" },
@@ -2431,26 +2316,11 @@ window.__ModuleLoader__.load({
                               "div",
                               { className: "cc-cap-title" },
                               h("span", { className: "cc-cap-name", title: entry.summary || entry.key }, entry.id),
-                              readOnly ? h("span", { className: "cc-tag" }, "磁盘") : null,
                               own ? h("span", { className: "cc-tag" }, "本会话") : null,
                             ),
                           ),
-                          h("span", { className: "cc-num" }, `≈${formatTokens(entry.tokens)}`),
-                          readOnly
-                            ? h("span", {
-                                className: "cc-seg is-readonly",
-                                title: "来自磁盘技能目录的只读条目；没有可写的目录段",
-                              }, "只读")
-                            : h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
-                          aiEnabled && !readOnly
-                            ? h("button", {
-                                type: "button",
-                                className: "cc-link is-icon",
-                                title: "让 AI 只分析这一项",
-                                disabled: busy,
-                                onClick: () => void askInline(`cap:${entry.key}`, entry.id),
-                              }, "AI")
-                            : null,
+                          h("span", { className: "cc-num" }, `≈${formatTokens(tokenForMode(entry, value))}`),
+                          h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
                           own
                             ? h(
                                 "button",
@@ -2470,9 +2340,7 @@ window.__ModuleLoader__.load({
           h(
             "div",
             { className: "cc-pop-note" },
-            shown.some((entry) => entry.readOnly)
-              ? `只读技能来自磁盘技能目录，没有可写的目录段；安装或启用懒工具箱后会切换为可调列表。${entries.some((entry) => !entry.readOnly) ? "其余条目仍只作用于本会话。" : ""}`
-              : "只作用于本会话，不改项目/工作区；加载 = 正文与工具都发，简介 = 只留一行说明，隐藏 = 连简介都不发，调用要审批。",
+            "只作用于本会话，不改项目/工作区；加载 = 正文与工具都发，简介 = 只留一行说明，隐藏 = 连简介都不发，调用要审批。",
           ),
         );
       };
@@ -2511,7 +2379,6 @@ window.__ModuleLoader__.load({
         return h(
           "div",
           null,
-          inlineView(),
           rows.length === 0
             ? h("div", { className: "cc-empty is-small" }, kind === "sections" ? "还没有可读的系统提示段。" : "工具表还没读出来。")
             : items.length === 0
@@ -2551,15 +2418,6 @@ window.__ModuleLoader__.load({
                     h(
                       "div",
                       { className: "cc-row-actions" },
-                      aiEnabled
-                        ? h("button", {
-                            type: "button",
-                            className: "cc-link is-icon",
-                            title: "让 AI 只分析这一项",
-                            disabled: busy,
-                            onClick: () => void askInline(`${kind === "sections" ? "section" : "tool"}:${item.name}`, item.name),
-                          }, "AI")
-                        : null,
                       isOwn
                         ? h(
                             "button",
@@ -2991,8 +2849,6 @@ window.__ModuleLoader__.load({
 
 /* 三档：一条轨道，选中项是实心的，没选的只有文字 */
 .cc-seg{display:inline-flex;align-items:center;padding:2px;border-radius:99px;background:var(--cc-soft);flex:none}
-.cc-seg.is-readonly{padding:3px 9px;font-size:10.5px;color:var(--cc-ink3);border:1px dashed color-mix(in srgb,var(--cc-ink3) 34%,transparent);background:transparent;white-space:nowrap}
-.cc-cap.is-readonly .cc-cap-name{color:var(--cc-ink2)}
 .cc-seg-btn{
   appearance:none;border:0;background:transparent;color:var(--cc-ink3);font:inherit;font-size:11px;line-height:1;
   padding:4px 8px;border-radius:99px;cursor:pointer;transition:background .14s ease,color .14s ease;

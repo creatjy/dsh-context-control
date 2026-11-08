@@ -44,7 +44,7 @@ test("有目录段时以目录段为准，忽略磁盘兜底", () => {
   assert.deepEqual(catalog.skills.map((entry) => entry.id), ["real"]);
 });
 
-test("只读技能强制为 on，且不会生成删除规则", () => {
+test("磁盘技能也能保存三档，并生成裁剪计划", () => {
   const diskSkills = [{
     kind: "skills",
     key: "skill:disk-only",
@@ -56,9 +56,9 @@ test("只读技能强制为 on，且不会生成删除规则", () => {
   }];
   const catalog = buildCatalog({ diskSkills });
   const applied = applyCaps(catalog, { "skill:disk-only": "hidden" });
-  assert.equal(applied.skills[0].mode, "on");
-  assert.equal(applied.skills[0].enabled, true);
+  assert.equal(applied.skills[0].mode, "hidden");
+  assert.equal(applied.skills[0].enabled, false);
   const plan = capPlan(catalog, { "skill:disk-only": "hidden" });
-  assert.equal(plan.skills.size, 0);
+  assert.equal(plan.skills.has("disk-only"), true);
   assert.equal(plan.items.length, 0);
 });
