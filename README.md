@@ -132,6 +132,7 @@ dsh plugin add @creatjy/dsh-context-control
 - 把工具全关掉，模型确实没有工具可用；界面会提示，但不会替你拦。
 - 「简介」自动恢复只作用于当前会话；新会话仍按项目/全局规则。
 - 压缩是否可用取决于当前 DSH profile 是否暴露压缩服务；没有时只能走 steer 指令。
+- 本项目在 DSH（DeepSeek Harness）上开发，验证环境为 macOS；其他操作系统或运行环境可能存在差异，欢迎反馈。
 
 ## 文档
 
@@ -141,6 +142,7 @@ dsh plugin add @creatjy/dsh-context-control
 
 ## 相关项目与致谢
 
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：本项目的宿主与开发环境。感谢其插件机制、API 与文档支持。
 - [dsh-context](https://github.com/bowenliang123/dsh-context)：DSH 的上下文仪表盘与浏览器，支持跨会话查看上下文构成、演变和 `/context` 命令。推荐给需要更深入分析上下文构成的用户；本项目在「先看清、再裁剪」的产品方向上也受益于它的探索。感谢作者 bowenliang123 与所有贡献者。
 
 ## 开发
