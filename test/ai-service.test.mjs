@@ -101,3 +101,33 @@ test("apply 需要 confirm，revision 变化会拒绝", async () => {
     /变化|过期/,
   );
 });
+
+import { resolveRoute } from "../lib/ai/service.js";
+
+test("provider 未注册时退回已注册 provider，而不是 NO_ADAPTER", async () => {
+  const ctx = {
+    get(name) {
+      if (name !== "llm") return undefined;
+      return {
+        async listProviders() { return [{ id: "deepseek-official" }]; },
+        async listModels(provider) { return provider === "deepseek-official" ? [{ id: "deepseek-flash" }] : []; },
+      };
+    },
+  };
+  const agent = { model: { current: () => ({ provider: "sutongapi", model: "deepseek-v4.1-flash" }) } };
+  const route = await resolveRoute(ctx, agent);
+  assert.deepEqual(route, { provider: "deepseek-official", model: "deepseek-flash", source: "fallback" });
+});
+
+test("provider 已注册时保留当前 agent 路由", async () => {
+  const ctx = {
+    get(name) {
+      if (name !== "llm") return undefined;
+      return { async listProviders() { return [{ id: "sutongapi" }]; } };
+    },
+  };
+  const agent = { model: { current: () => ({ provider: "sutongapi", model: "m" }) } };
+  const route = await resolveRoute(ctx, agent);
+  assert.equal(route.source, "agent");
+  assert.equal(route.provider, "sutongapi");
+});
