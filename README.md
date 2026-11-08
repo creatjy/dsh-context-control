@@ -27,10 +27,20 @@ dsh plugin add github:creatjy/dsh-context-control
 或下载 [Release](https://github.com/creatjy/dsh-context-control/releases/latest) 里的 tarball：
 
 ```sh
-dsh plugin add ./dsh-context-control-0.5.27.tgz
+dsh plugin add ./dsh-context-control-0.5.28.tgz
 ```
 
 安装后重启 DSH，再刷新 Web GUI。左栏会出现「上下文管控」，输入框左侧会出现 `上下文 12.7k ▾` 这样的胶囊。
+
+### GitHub Packages（npm）
+
+同一份代码也会发布到 GitHub Packages，包名为 `@creatjy/dsh-context-control`。GitHub Packages 的 npm registry 需要先认证（即使是公开包）：
+
+```sh
+npm login --scope=@creatjy --auth-type=legacy --registry=https://npm.pkg.github.com
+npm config set @creatjy:registry https://npm.pkg.github.com
+dsh plugin add @creatjy/dsh-context-control
+```
 
 ## 两处入口
 
@@ -73,6 +83,8 @@ dsh plugin add ./dsh-context-control-0.5.27.tgz
 ![技能页：加载 / 简介 / 隐藏三档，以及全开、全关与筛选](docs/images/skills.png)
 
 系统提示段与系统工具没有「简介」档，只有加载 / 不加载；它们同样可以按项目、全局或本会话覆盖。
+
+所有筛选框都带「全部状态 / 已开启 / 已关闭」下拉，可和文本搜索叠加；列表很长时先筛状态、再按名字找更快。
 
 ### 3. 会话内压缩：立即压，或到阈值自动压
 
