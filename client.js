@@ -1037,24 +1037,28 @@ window.__ModuleLoader__.load({
       );
     }
 
-    // AI 建议里的理由列会被截断；悬停/点击时用 fixed 气泡展示完整文字，点外部或 Esc 收起。
-    function AiWhy({ text }) {
-      const value = String(text || "").trim();
+    // AI 建议行内容可能被截断；整行悬停/点击时用 fixed 气泡展示完整名称和理由。
+    function AiRow({ item, checked, disabled, onToggle }) {
       const [open, setOpen] = useState(false);
       const [pinned, setPinned] = useState(false);
       const [pos, setPos] = useState(null);
-      const wrapRef = useRef(null);
+      const rowRef = useRef(null);
+      const lineRef = useRef(null);
+      const name = String(item.name || "").trim() || "未命名条目";
+      const blocked = typeof item.blocked === "string" ? item.blocked.trim() : "";
+      const reason = blocked || String(item.reason || "").trim();
+      const action = item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action === "on" ? "开启" : item.action === "off" ? "关闭" : item.action;
       const close = () => {
         setOpen(false);
         setPinned(false);
       };
       const place = () => {
-        const el = wrapRef.current;
-        if (!el || !value) return;
+        const el = lineRef.current || rowRef.current;
+        if (!el) return;
         const rect = el.getBoundingClientRect();
-        const width = Math.min(340, Math.max(180, window.innerWidth - 24));
+        const width = Math.min(360, Math.max(180, window.innerWidth - 24));
         const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
-        const below = rect.bottom + 220 <= window.innerHeight;
+        const below = rect.bottom + 240 <= window.innerHeight;
         const maxHeight = Math.max(80, Math.min(320, below ? window.innerHeight - rect.bottom - 20 : rect.top - 20));
         setPos(below
           ? { left, top: rect.bottom + 8, width, maxHeight }
@@ -1064,7 +1068,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         if (!open) return undefined;
         const onDown = (event) => {
-          if (!wrapRef.current?.contains(event.target)) close();
+          if (!rowRef.current?.contains(event.target)) close();
         };
         const onKey = (event) => {
           if (event.key === "Escape") {
@@ -1084,10 +1088,9 @@ window.__ModuleLoader__.load({
           window.removeEventListener("resize", onScroll);
         };
       }, [open]);
-      if (!value) return h("span", { className: "cc-ai-why" }, "");
-      return h("span", {
-        ref: wrapRef,
-        className: `cc-ai-why-wrap${open ? " is-open" : ""}`,
+      return h("label", {
+        className: "cc-ai-row",
+        ref: rowRef,
         onPointerEnter: (event) => {
           if (event.pointerType === "mouse") place();
         },
@@ -1095,12 +1098,19 @@ window.__ModuleLoader__.load({
           if (event.pointerType === "mouse" && !pinned) close();
         },
       },
+        h("input", {
+          type: "checkbox",
+          checked,
+          disabled,
+          onChange: (event) => onToggle(event.target.checked),
+        }),
         h("span", {
-          className: "cc-ai-why",
+          ref: lineRef,
+          className: "cc-ai-line",
           role: "button",
           tabIndex: 0,
           "aria-expanded": open ? "true" : "false",
-          "aria-label": `${value}（悬停或点击查看完整说明）`,
+          "aria-label": `${name}${reason ? `：${reason}` : ""}（悬停或点击查看完整信息）`,
           onFocus: () => place(),
           onBlur: () => {
             if (!pinned) close();
@@ -1121,13 +1131,25 @@ window.__ModuleLoader__.load({
             setPinned(true);
             place();
           },
-        }, value),
+        },
+          h("span", { className: "cc-ai-name" }, name),
+          h("span", { className: `cc-ai-action is-${item.action}` }, action),
+          h("span", { className: "cc-ai-why" }, reason),
+          h("span", { className: "cc-ai-save" }, item.savedTokens ? `−${formatTokens(item.savedTokens)}` : ""),
+        ),
         open && pos ? h("span", {
           className: "cc-ai-tip",
           role: "tooltip",
           style: pos,
           onClick: (event) => event.stopPropagation(),
-        }, value) : null,
+        },
+          h("span", { className: "cc-ai-tip-head" },
+            h("b", { className: "cc-ai-tip-name" }, name),
+            action ? h("span", { className: `cc-ai-action is-${item.action}` }, action) : null,
+            item.savedTokens ? h("span", { className: "cc-ai-tip-save" }, `−${formatTokens(item.savedTokens)}`) : null,
+          ),
+          h("span", { className: "cc-ai-tip-reason" }, reason || "无说明"),
+        ) : null,
       );
     }
 
@@ -1216,18 +1238,13 @@ window.__ModuleLoader__.load({
               stale ? h("div", { className: "cc-ai-note" }, "配置已变化，应用前请重新分析。") : null,
               suggestion.warnings?.length ? h("div", { className: "cc-ai-warn" }, `部分条目未覆盖：${suggestion.warnings.slice(0, 3).join("；")}`) : null,
               suggestion.items.filter((item) => item.action !== "keep").slice(0, 12).map((item) =>
-                h("label", { key: item.id, className: "cc-ai-row" },
-                  h("input", {
-                    type: "checkbox",
-                    checked: Boolean(picked[item.id]),
-                    disabled: Boolean(item.blocked),
-                    onChange: (event) => setPicked((prev) => ({ ...prev, [item.id]: event.target.checked })),
-                  }),
-                  h("span", { className: "cc-ai-name" }, item.name),
-                  h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action === "on" ? "开启" : item.action === "off" ? "关闭" : item.action),
-                  h(AiWhy, { text: item.blocked || item.reason || "" }),
-                  h("span", { className: "cc-ai-save" }, item.savedTokens ? `−${formatTokens(item.savedTokens)}` : ""),
-                ),
+                h(AiRow, {
+                  key: item.id,
+                  item,
+                  checked: Boolean(picked[item.id]),
+                  disabled: Boolean(item.blocked),
+                  onToggle: (checked) => setPicked((prev) => ({ ...prev, [item.id]: checked })),
+                }),
               ),
               h("div", { className: "cc-ai-foot" },
                 h("button", { type: "button", className: "cc-btn is-mini is-primary", disabled: busy || stale, onClick: () => void apply() }, "应用选中"),
@@ -3171,17 +3188,21 @@ window.__ModuleLoader__.load({
 .cc-ai-summary{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11.5px;font-weight:600;color:var(--cc-ink)}
 .cc-ai-meta{font-size:10.5px;font-weight:400;color:var(--cc-ink2);white-space:nowrap}
 .cc-ai-warn{font-size:11px;color:var(--cc-warn-text,#7a5a00)}
-.cc-ai-row{display:grid;grid-template-columns:14px minmax(0,1.4fr) auto minmax(0,2fr) auto;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--cc-soft);font-size:11.5px}
-.cc-ai-row input{width:13px;height:13px;margin:0}
+.cc-ai-row{display:grid;grid-template-columns:14px minmax(0,1fr);gap:8px;align-items:start;padding:4px 0;border-top:1px solid var(--cc-soft);font-size:11.5px}
+.cc-ai-row input{width:13px;height:13px;margin:1px 0 0}
+.cc-ai-line{display:grid;grid-template-columns:minmax(0,1.4fr) auto minmax(0,2fr) auto;gap:8px;align-items:center;min-width:0;cursor:help;border-radius:5px}
+.cc-ai-line:focus-visible{outline:2px solid color-mix(in srgb,var(--cc-on) 65%,transparent);outline-offset:2px}
 .cc-ai-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink)}
 .cc-ai-action{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;border:1px solid var(--cc-line);white-space:nowrap}
 .cc-ai-action.is-hide{color:var(--cc-err);border-color:color-mix(in srgb,var(--cc-err) 35%,transparent)}
 .cc-ai-action.is-brief{color:#7a5a00;border-color:#d9c58a}
 .cc-ai-action.is-rewrite{color:var(--cc-on-text,#2f5fd4);border-color:#b9c8f5}
-.cc-ai-why-wrap{position:relative;display:block;min-width:0;max-width:100%}
-.cc-ai-why{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px;cursor:help}
-.cc-ai-why:focus-visible{outline:2px solid color-mix(in srgb,var(--cc-on) 65%,transparent);outline-offset:2px;border-radius:3px}
-.cc-ai-tip{position:fixed;z-index:90;box-sizing:border-box;padding:8px 10px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-bg);box-shadow:0 12px 30px rgba(0,0,0,.2);font-size:11px;line-height:1.55;color:var(--cc-ink2);text-align:left;white-space:normal;overflow:auto;overscroll-behavior:contain}
+.cc-ai-why{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px}
+.cc-ai-tip{position:fixed;z-index:90;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:8px 10px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-bg);box-shadow:0 12px 30px rgba(0,0,0,.2);font-size:11px;line-height:1.55;color:var(--cc-ink2);text-align:left;white-space:normal;overflow:auto;overscroll-behavior:contain}
+.cc-ai-tip-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--cc-ink)}
+.cc-ai-tip-name{font-weight:600;word-break:break-word}
+.cc-ai-tip-reason{white-space:pre-wrap;word-break:break-word}
+.cc-ai-tip-save{font-size:10.5px;color:var(--cc-ink2);font-variant-numeric:tabular-nums}
 .cc-ai-save{font-size:11px;color:var(--cc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cc-ai-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
 
@@ -3189,7 +3210,7 @@ window.__ModuleLoader__.load({
 .cc-ai-inline-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
 .cc-ai-inline-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px}
 .cc-ai-inline-row .cc-ai-why{flex:1 1 auto;min-width:120px}
-@media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-row{grid-template-columns:14px minmax(0,1fr) auto;}.cc-ai-why-wrap{grid-column:2/-1}}
+@media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-line{grid-template-columns:minmax(0,1fr) auto}.cc-ai-line .cc-ai-why{grid-column:1/-1}.cc-ai-line .cc-ai-save{grid-column:2}}
 @media (prefers-reduced-motion:reduce){.cc-page.cc-pop{animation:none}}
 
 `;
