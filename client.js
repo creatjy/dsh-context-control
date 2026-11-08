@@ -1165,6 +1165,7 @@ window.__ModuleLoader__.load({
       const [leafQuery, setLeafQuery] = useState("");
       const [leafStatus, setLeafStatus] = useState("all");
       const [tab, setTab] = useState("parts");
+      const [inlineAi, setInlineAi] = useState(null);
 
       const load = useCallback(async () => {
         try {
@@ -1217,12 +1218,62 @@ window.__ModuleLoader__.load({
         [load],
       );
 
+      const askInline = async (itemId, name) => {
+        setInlineAi({ itemId, name, loading: true, suggestion: null, error: "" });
+        const result = await act({ action: "aiSuggest", scope: "item", itemId });
+        const suggestion = result?.suggestion ?? null;
+        setInlineAi((current) => current && current.itemId === itemId
+          ? { ...current, loading: false, suggestion, error: suggestion ? "" : (result?.message || "没有拿到建议") }
+          : current);
+      };
+      const applyInline = async () => {
+        const current = inlineAi;
+        const suggestion = current?.suggestion;
+        if (!suggestion) return;
+        const item = suggestion.items.find((entry) => entry.id === current.itemId);
+        if (!item) return;
+        const result = await act({ action: "aiApply", suggestionId: suggestion.id, itemIds: [item.id], confirm: true });
+        if (result?.ok) {
+          setInlineAi({ ...current, suggestion: null, applied: true, undoToken: result.undoToken || "" });
+        }
+      };
+      const undoInline = async () => {
+        if (!inlineAi?.undoToken) return;
+        const result = await act({ action: "aiUndo", undoToken: inlineAi.undoToken });
+        if (result?.ok) setInlineAi(null);
+      };
+      const inlineView = () => {
+        if (!inlineAi) return null;
+        const suggestion = inlineAi.suggestion;
+        const item = suggestion?.items?.find((entry) => entry.id === inlineAi.itemId);
+        return h("div", { className: "cc-ai-inline" },
+          h("div", { className: "cc-ai-inline-head" },
+            h("b", null, inlineAi.name || inlineAi.itemId),
+            h("span", { className: "cc-ai-note" }, "单条建议 · 不影响其他项"),
+            h("button", { type: "button", className: "cc-link", onClick: () => setInlineAi(null) }, "关闭"),
+          ),
+          inlineAi.loading ? h("div", { className: "cc-ai-note" }, "分析这一项…")
+            : inlineAi.applied ? h("div", { className: "cc-ai-inline-row" },
+                h("span", { className: "cc-alert is-ok" }, "已应用"),
+                inlineAi.undoToken ? h("button", { type: "button", className: "cc-btn is-ghost is-mini", onClick: () => void undoInline() }, "撤销") : null,
+              )
+            : suggestion && item ? h("div", { className: "cc-ai-inline-row" },
+                h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : "保留"),
+                h("span", { className: "cc-ai-why" }, item.reason || ""),
+                item.savedTokens ? h("span", { className: "cc-ai-save" }, `−${formatTokens(item.savedTokens)}`) : null,
+                h("button", { type: "button", className: "cc-btn is-mini", disabled: busy, onClick: () => void applyInline() }, "应用这一项"),
+              )
+            : h("div", { className: "cc-ai-warn" }, inlineAi.error || suggestion?.warnings?.[0] || "这一项没有可执行建议。"),
+        );
+      };
+
       const mode = useMemo(() => {
         if (!state) return null;
         return state.modes.find((item) => item.id === state.activeModeId) ?? state.modes[0];
       }, [state]);
 
       const rules = mode?.rules ?? { sections: {}, contexts: {}, tools: {} };
+      const aiEnabled = state?.ai?.enabled === true;
       const ruleFor = (kind, name) => rules[kind]?.[name] ?? null;
 
       const toggle = (kind, name, next) =>
@@ -2275,6 +2326,7 @@ window.__ModuleLoader__.load({
         return h(
           "div",
           null,
+          inlineView(),
           entries.length === 0
             ? h(
                 "div",
@@ -2306,6 +2358,15 @@ window.__ModuleLoader__.load({
                           ),
                           h("span", { className: "cc-num" }, `≈${formatTokens(entry.tokens)}`),
                           h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
+                          aiEnabled
+                            ? h("button", {
+                                type: "button",
+                                className: "cc-link is-icon",
+                                title: "让 AI 只分析这一项",
+                                disabled: busy,
+                                onClick: () => void askInline(`cap:${entry.key}`, entry.id),
+                              }, "AI")
+                            : null,
                           own
                             ? h(
                                 "button",
@@ -2364,6 +2425,7 @@ window.__ModuleLoader__.load({
         return h(
           "div",
           null,
+          inlineView(),
           rows.length === 0
             ? h("div", { className: "cc-empty is-small" }, kind === "sections" ? "还没有可读的系统提示段。" : "工具表还没读出来。")
             : items.length === 0
@@ -2403,6 +2465,15 @@ window.__ModuleLoader__.load({
                     h(
                       "div",
                       { className: "cc-row-actions" },
+                      aiEnabled
+                        ? h("button", {
+                            type: "button",
+                            className: "cc-link is-icon",
+                            title: "让 AI 只分析这一项",
+                            disabled: busy,
+                            onClick: () => void askInline(`${kind === "sections" ? "section" : "tool"}:${item.name}`, item.name),
+                          }, "AI")
+                        : null,
                       isOwn
                         ? h(
                             "button",
@@ -3097,6 +3168,11 @@ window.__ModuleLoader__.load({
 .cc-ai-why{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px}
 .cc-ai-save{font-size:11px;color:var(--cc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cc-ai-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
+
+.cc-ai-inline{margin:0 26px 8px;padding:8px 10px;border:1px solid #d9e2fb;border-radius:8px;background:#f7f9ff}
+.cc-ai-inline-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
+.cc-ai-inline-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px}
+.cc-ai-inline-row .cc-ai-why{flex:1 1 auto;min-width:120px}
 @media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-row{grid-template-columns:14px minmax(0,1fr) auto;}.cc-ai-why{grid-column:2/-1}}
 @media (prefers-reduced-motion:reduce){.cc-page.cc-pop{animation:none}}
 
