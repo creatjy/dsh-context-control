@@ -1871,6 +1871,7 @@ window.__ModuleLoader__.load({
       const [done, setDone] = useState("");
       const [loading, setLoading] = useState(false);
       const [aiOpen, setAiOpen] = useState(false);
+      const [inlineAi, setInlineAi] = useState(null);
       // 全局筛选：只作用于除概览外的页签，切页不丢；关闭弹窗时清空。
       const [popQuery, setPopQuery] = useState("");
       const [popStatus, setPopStatus] = useState("all");
@@ -1977,6 +1978,53 @@ window.__ModuleLoader__.load({
         [load],
       );
 
+      const askInline = async (itemId, name) => {
+        setInlineAi({ itemId, name, loading: true, suggestion: null, error: "" });
+        const result = await act({ action: "aiSuggest", scope: "item", itemId, writeScope: "session" });
+        const suggestion = result?.suggestion ?? null;
+        setInlineAi((current) => current && current.itemId === itemId
+          ? { ...current, loading: false, suggestion, error: suggestion ? "" : (result?.message || "没有拿到建议") }
+          : current);
+      };
+      const applyInline = async () => {
+        const current = inlineAi;
+        const suggestion = current?.suggestion;
+        if (!suggestion) return;
+        const item = suggestion.items.find((entry) => entry.id === current.itemId);
+        if (!item) return;
+        const result = await act({ action: "aiApply", suggestionId: suggestion.id, itemIds: [item.id], confirm: true });
+        if (result?.ok) setInlineAi({ ...current, suggestion: null, applied: true, undoToken: result.undoToken || "" });
+      };
+      const undoInline = async () => {
+        if (!inlineAi?.undoToken) return;
+        const result = await act({ action: "aiUndo", undoToken: inlineAi.undoToken });
+        if (result?.ok) setInlineAi(null);
+      };
+      const inlineView = () => {
+        if (!inlineAi) return null;
+        const suggestion = inlineAi.suggestion;
+        const item = suggestion?.items?.find((entry) => entry.id === inlineAi.itemId);
+        return h("div", { className: "cc-ai-inline" },
+          h("div", { className: "cc-ai-inline-head" },
+            h("b", null, inlineAi.name || inlineAi.itemId),
+            h("span", { className: "cc-ai-note" }, "单条建议 · 只写本会话"),
+            h("button", { type: "button", className: "cc-link", onClick: () => setInlineAi(null) }, "关闭"),
+          ),
+          inlineAi.loading ? h("div", { className: "cc-ai-note" }, "分析这一项…")
+            : inlineAi.applied ? h("div", { className: "cc-ai-inline-row" },
+                h("span", { className: "cc-alert is-ok" }, "已应用"),
+                inlineAi.undoToken ? h("button", { type: "button", className: "cc-btn is-ghost is-mini", onClick: () => void undoInline() }, "撤销") : null,
+              )
+            : suggestion && item ? h("div", { className: "cc-ai-inline-row" },
+                h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : "保留"),
+                h("span", { className: "cc-ai-why" }, item.reason || ""),
+                item.savedTokens ? h("span", { className: "cc-ai-save" }, `−${formatTokens(item.savedTokens)}`) : null,
+                h("button", { type: "button", className: "cc-btn is-mini", disabled: busy, onClick: () => void applyInline() }, "应用这一项"),
+              )
+            : h("div", { className: "cc-ai-warn" }, inlineAi.error || suggestion?.warnings?.[0] || "这一项没有可执行建议。"),
+        );
+      };
+
       const mode = useMemo(() => {
         if (!state) return null;
         return state.modes.find((item) => item.id === state.activeModeId) ?? state.modes[0];
@@ -2002,6 +2050,7 @@ window.__ModuleLoader__.load({
       // 胶囊里的技能/MCP/插件开关是「本会话」层：叠在项目继承之上，不写回项目。
       const sessionCaps = state?.sessionCaps ?? {};
       const caps = { ...(project?.resolvedCaps ?? {}), ...sessionCaps };
+      const aiEnabled = state?.ai?.enabled === true;
       const kinds = state?.capabilities ?? {};
       // 系统提示段自己没有 capKey，按能力目录反查「这段属于哪个能力」。
       const sectionCaps = {};
