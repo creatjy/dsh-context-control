@@ -139,6 +139,10 @@ dsh plugin add @creatjy/dsh-context-control
 - [UI 设计](docs/UI设计.md)：布局、tokens、组件规格、六个页面与交互。
 - [能力精简与冲突分析](docs/能力精简与冲突分析-需求与规划.md)：能力目录、冲突与迭代规划。
 
+## 相关项目与致谢
+
+- [dsh-context](https://github.com/bowenliang123/dsh-context)：DSH 的上下文仪表盘与浏览器，支持跨会话查看上下文构成、演变和 `/context` 命令。推荐给需要更深入分析上下文构成的用户；本项目在「先看清、再裁剪」的产品方向上也受益于它的探索。感谢作者 bowenliang123 与所有贡献者。
+
 ## 开发
 
 无构建步骤，改完 `lib/` 或 `client.js` 后重启 DSH、刷新 Web GUI 即可。发布前可以跑：
