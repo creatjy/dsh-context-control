@@ -21,7 +21,7 @@ test("没有目录段时，磁盘技能作为只读兜底列出", () => {
     assert.equal(found.readOnly, true);
     assert.equal(found.source, "filesystem");
     assert.equal(found.summary, "Alpha 的磁盘摘要");
-    assert.equal(found.tokens, 0);
+    assert.ok(found.tokens > 0);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

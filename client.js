@@ -366,15 +366,6 @@ window.__ModuleLoader__.load({
           `≈${formatTokens(tokenForMode(entry, mode))}`,
         ),
         h(CapSeg, { mode, busy, onSet }),
-        own
-          ? h("button", {
-              type: "button",
-              className: "cc-link",
-              disabled: busy,
-              title: "撤掉本项目的覆盖，回到继承来的档位",
-              onClick: onReset,
-            }, "继承")
-          : h("span", { className: "cc-link is-muted", title: "沿用父项目" }, "继承"),
       );
     }
 
@@ -590,14 +581,6 @@ window.__ModuleLoader__.load({
                         onClick: () => setEditing(item.name),
                       }, "编辑")
                     : null,
-                  own[item.name]
-                    ? h("button", {
-                        type: "button",
-                        className: "cc-link is-muted",
-                        disabled: busy,
-                        onClick: () => set(item.name, null),
-                      }, "还原")
-                    : h("span", { className: "cc-link is-muted" }, "继承"),
                 ),
               );
         }),
@@ -2225,7 +2208,7 @@ window.__ModuleLoader__.load({
 
       const vw = typeof window === "undefined" ? 1200 : window.innerWidth || 1200;
       const vh = typeof window === "undefined" ? 800 : window.innerHeight || 800;
-      const width = Math.min(516, vw - 24);
+      const width = Math.min(490, vw - 24);
       const left = rect ? Math.min(Math.max(12, rect.left), vw - width - 12) : 20;
       const bottom = rect ? Math.max(12, vh - rect.top + 10) : 20;
       const maxHeight = Math.max(240, Math.min(560, vh - bottom - 16));
@@ -2415,19 +2398,6 @@ window.__ModuleLoader__.load({
                           ),
                           h("span", { className: "cc-num" }, `≈${formatTokens(tokenForMode(entry, value))}`),
                           h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
-                          own
-                            ? h(
-                                "button",
-                                {
-                                  type: "button",
-                                  className: "cc-link is-icon",
-                                  title: "撤掉本会话覆盖，回到项目继承来的档位",
-                                  disabled: busy,
-                                  onClick: () => setCap(entry.key, null),
-                                },
-                                "↺",
-                              )
-                            : null,
                         );
                       }),
                     ),
@@ -2543,7 +2513,11 @@ window.__ModuleLoader__.load({
       if (tab === "skills" || tab === "mcp" || tab === "plugins") {
         const entries = kinds[tab] ?? [];
         const loaded = entries.filter((entry) => modeOfCaps(caps, entry.key) === "on").length;
-        pageMeta = `本会话 · 继承项目 ${project?.name ?? "工作区"} · ${loaded}/${entries.length} 已加载`;
+        const saved = entries.reduce(
+          (sum, entry) => sum + (modeOfCaps(caps, entry.key) === "on" ? 0 : entry.tokens ?? 0),
+          0,
+        );
+        pageMeta = `本会话 · 继承项目 ${project?.name ?? "工作区"} · ${loaded}/${entries.length} 已加载 · 少发 ≈${formatTokens(saved)}`;
       } else if (tab === "sections" || tab === "tools") {
         const data = scopeData(tab);
         pageMeta = `本会话 · 继承项目 ${project?.name ?? "工作区"} · ${data.on}/${data.rows.length} 生效`

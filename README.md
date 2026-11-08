@@ -58,7 +58,7 @@ dsh plugin add github:creatjy/dsh-context-control
 或下载 [Release](https://github.com/creatjy/dsh-context-control/releases/latest) 里的 tarball：
 
 ```sh
-dsh plugin add ./dsh-context-control-0.6.4.tgz
+dsh plugin add ./dsh-context-control-0.6.5.tgz
 ```
 
 安装后重启 DSH，再刷新 Web GUI。左栏会出现「上下文管控」，输入框左侧会出现 `上下文 12.7k ▾` 这样的胶囊。
@@ -123,7 +123,7 @@ DSH 的“上下文占用”其实由两部分组成，混在一起看很容易�
 
 所有筛选框都带「全部状态 / 已开启 / 已关闭」下拉，可和文本搜索叠加；列表很长时先筛状态、再按名字找更快。
 
-没有安装或启用懒工具箱时，技能页会扫描当前工作区与用户目录下的技能文件，仍然显示「加载 / 简介 / 隐藏」三档；token 记 0，档位会保存，安装或启用工具箱后生效。
+没有安装或启用懒工具箱时，技能页会扫描当前工作区与用户目录下的技能文件，仍然显示「加载 / 简介 / 隐藏」三档；token 按目录行估算，档位会保存，安装或启用工具箱后生效。
 
 ### 4. 会话内压缩：立即压，或到阈值自动压
 
