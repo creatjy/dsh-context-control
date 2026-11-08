@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callJson, collectStream } from "../lib/ai/llm.js";
+import { callJson, collectStream, withTimeout } from "../lib/ai/llm.js";
 
 const streamOf = (events) => (async function* () {
   for (const event of events) yield event;
@@ -67,4 +67,19 @@ test("空输出会放宽 maxTokens 重试一次", async () => {
   });
   assert.deepEqual(result, { items: [] });
   assert.deepEqual(calls, [4096, 8192]);
+});
+
+
+test("超时 abort 会保留 llm-timeout 原因，而不是显示已取消", async () => {
+  const { signal } = withTimeout(undefined, 1);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(signal.aborted, true);
+  assert.equal(signal.reason?.code, "llm-timeout");
+  await assert.rejects(
+    () => collectStream((async function* () {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      yield { type: "text-delta", delta: { text: "x" } };
+    })(), { signal }),
+    (error) => error.code === "llm-timeout" && /超时/.test(error.message),
+  );
 });

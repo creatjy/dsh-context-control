@@ -209,7 +209,7 @@ type WriteTarget =
     "impactScanReason": null,
     "busyScopes": ["global"],
     "estimatedInputTokens": 3120,
-    "limits": { "maxTokens": 4096, "timeoutMs": 60000, "maxItems": 60 }
+    "limits": { "maxTokens": 4096, "timeoutMs": 120000, "maxItems": 60 }
   }
 }
 ```
@@ -287,7 +287,7 @@ const stream = ctx.llm.stream({
    - `kind === "aborted"` → 抛 `AbortError`，映射为 `aborted`，不算配置失败；
    - 正常结束但文本为空 → `empty-output`，不当作成功；
 3. `maxTokens` 用 `resolveModelInfo(provider, model, signal)` 的 `defaultMaxTokens` 夹取，并参考 `contextWindow`，不再固定 4096；
-4. 60s `AbortController`；`signal` 同时监听 HTTP 请求关闭，客户端断开就 abort；
+4. 120s `AbortController`；超时 abort 会保留 `llm-timeout` 原因，不再显示成“已取消”；
 5. **插件内不重试**：传输重试交给 `dsh-llm-retry`；JSON 解析失败直接返回 `bad-json`，避免同一次点击叠两次计费。
 
 ### 4.3 请求与解析
@@ -759,7 +759,7 @@ test/ai-*.test.mjs     mock llm + 临时 dataDir
 12. 不同 session 不共享「最近路由」；
 13. `finish.kind=error` → 失败，不写；`aborted` → aborted；空文本 → `empty-output`；
 14. content blocks 入参形状正确；`maxTokens` 被 `resolveModelInfo` 夹取；
-15. 60s abort 能中断 stream；客户端断开触发 abort；
+15. 120s abort 能中断 stream，并返回“模型调用超时（120 秒）”；
 16. 插件内不对 bad-json 重试（mock 调用次数为 1）。
 
 ### 14.4 语义与证据
