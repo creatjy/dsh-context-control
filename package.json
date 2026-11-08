@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-control",
-  "version": "0.5.26",
+  "version": "0.5.27",
   "description": "Context control for DeepSeek Harness: inspect token usage, lazily load skills/MCP/plugins per session, and compact on demand.",
   "type": "module",
   "main": "lib/index.js",
