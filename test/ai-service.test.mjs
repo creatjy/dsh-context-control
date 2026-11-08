@@ -138,3 +138,26 @@ test("provider 已注册时保留当前 agent 路由", async () => {
   assert.equal(route.source, "agent");
   assert.equal(route.provider, "sutongapi");
 });
+
+test("summary 同时显示开启与关闭，不只显示 enabled 侧", async () => {
+  const store = tempStore();
+  store.setAi({ enabled: true, privacyAcceptedAt: "2026-11-08T00:00:00Z" });
+  const service = createAiService({
+    store,
+    collect: async () => ({
+      ...evidence(),
+      items: [
+        { id: "cap:mcp:github", type: "cap", name: "mcp:github", tokens: 100, enabled: true, currentValue: null, currentRule: null },
+        { id: "cap:plugin:unused", type: "cap", name: "plugin:unused", tokens: 40, enabled: false, currentValue: "hidden", currentRule: null },
+      ],
+      revision: store.revision,
+    }),
+    llm: fakeLlm([
+      { id: "cap:mcp:github", action: "hide", reason: "重复", confidence: "high", risk: "low" },
+      { id: "cap:plugin:unused", action: "on", reason: "当前任务需要", confidence: "medium", risk: "medium" },
+    ]),
+  });
+  const suggestion = await service.suggest({ scope: "global" });
+  assert.match(suggestion.summary, /隐藏 1/);
+  assert.match(suggestion.summary, /开启 1/);
+});
