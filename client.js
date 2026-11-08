@@ -131,6 +131,32 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const FILTER_STATUS = [
+      { value: "all", label: "全部状态" },
+      { value: "on", label: "已开启" },
+      { value: "off", label: "已关闭" },
+    ];
+
+    function statusMatches(status, on) {
+      return status === "all" || (status === "on" ? on : !on);
+    }
+
+    /** 所有筛选框共用的状态筛选：和文本搜索叠加，按「实际是否生效」过滤。 */
+    function StatusFilter({ value, onChange, busy, className }) {
+      return h(
+        "select",
+        {
+          className: `cc-select cc-status-select${className ? ` ${className}` : ""}`,
+          value,
+          disabled: Boolean(busy),
+          "aria-label": "按状态筛选",
+          title: "按开启状态筛选",
+          onChange: (event) => onChange(event.target.value),
+        },
+        FILTER_STATUS.map((item) => h("option", { key: item.value, value: item.value }, item.label)),
+      );
+    }
+
     /** 横向切换条：构成/项目里的子集用它，和会话胶囊同一种交互。 */
     function SubTabs({ items, value, onChange, busy, level }) {
       return h(
@@ -475,11 +501,19 @@ window.__ModuleLoader__.load({
         return (state.projects ?? []).find((item) => item.id === scopeId)?.resolvedCaps ?? {};
       }, [state, scopeId]);
       const [query, setQuery] = useState("");
+      const [status, setStatus] = useState("all");
       const base = all.filter((item) => kind === "tools" || item.tokens > 0 || own[item.name]);
+      const itemOn = (item) => {
+        const rule = own[item.name] ?? {};
+        const enabled = (own[item.name] ? rule.enabled : merged[item.name]?.enabled) !== false;
+        const capMode = kind === "tools" && item.capKey ? modeOfCaps(scopeCaps, item.capKey) : "on";
+        return enabled && capMode === "on";
+      };
       const needle = query.trim().toLowerCase();
-      const items = needle
+      const searched = needle
         ? base.filter((item) => item.name.toLowerCase().includes(needle) || (item.preview ?? "").toLowerCase().includes(needle))
         : base;
+      const items = searched.filter((item) => statusMatches(status, itemOn(item)));
 
       if (base.length === 0) {
         return h("div", { className: "cc-empty is-small" }, kind === "sections" ? "还没有可读的系统提示段。" : "工具表还没读出来。");
@@ -498,8 +532,10 @@ window.__ModuleLoader__.load({
             "aria-label": "筛选",
             onChange: (event) => setQuery(event.target.value),
           }),
+          h(StatusFilter, { value: status, onChange: setStatus, busy }),
           h("span", { className: "cc-muted" }, `${items.length}/${base.length} 项`),
         ),
+        items.length === 0 ? h("div", { className: "cc-empty is-small" }, "没有匹配的条目。") : null,
         items.map((item) => {
           const rule = own[item.name] ?? {};
           const enabled = (own[item.name] ? rule.enabled : merged[item.name]?.enabled) !== false;
@@ -573,6 +609,7 @@ window.__ModuleLoader__.load({
       const [newCwd, setNewCwd] = useState("");
       const [view, setView] = useState("skills");
       const [capQuery, setCapQuery] = useState("");
+      const [capStatus, setCapStatus] = useState("all");
 
       const projects = state.projects ?? [];
       const isGlobal = fixedScope === "global";
@@ -839,7 +876,7 @@ window.__ModuleLoader__.load({
             { key: "tools", label: "系统工具", badge: `${scopeToolLoaded}/${scopeToolCount}`, note: `≈${formatTokens(scopeToolTokens)}`, minus: scopeStats("tools").offT ? `−≈${formatTokens(scopeStats("tools").offT)}` : "" },
           ],
           value: view,
-          onChange: (next) => { setView(next); setCapQuery(""); },
+          onChange: (next) => { setView(next); setCapQuery(""); setCapStatus("all"); },
         }),
 
         (() => {
@@ -879,11 +916,12 @@ window.__ModuleLoader__.load({
               const group = CAP_GROUPS.find((item) => item.key === view) ?? CAP_GROUPS[0];
               const all = catalog[group.key] ?? [];
               const q = capQuery.trim().toLowerCase();
-              const entries = q
+              const searched = q
                 ? all.filter((entry) => String(entry.name ?? "").toLowerCase().includes(q)
                     || String(entry.summary ?? "").toLowerCase().includes(q)
                     || String(entry.id ?? "").toLowerCase().includes(q))
                 : all;
+              const entries = searched.filter((entry) => statusMatches(capStatus, modeOfCaps(caps, entry.key) === "on"));
               return h("div", null,
                 h("div", { className: "cc-search" },
                   h("input", {
@@ -893,7 +931,8 @@ window.__ModuleLoader__.load({
                     spellCheck: false,
                     onChange: (event) => setCapQuery(event.target.value),
                   }),
-                  h("span", { className: "cc-muted" }, q ? entries.length + " / " + all.length + " 项" : all.length + " 项"),
+                  h(StatusFilter, { value: capStatus, onChange: setCapStatus, busy }),
+                  h("span", { className: "cc-muted" }, q || capStatus !== "all" ? entries.length + " / " + all.length + " 项" : all.length + " 项"),
                 ),
                 h(CapGroup, {
                 key: group.key,
@@ -1024,10 +1063,12 @@ window.__ModuleLoader__.load({
       const [renaming, setRenaming] = useState(false);
       const [showTools, setShowTools] = useState(false);
       const [toolQuery, setToolQuery] = useState("");
+      const [toolStatus, setToolStatus] = useState("all");
       const [showEmpty, setShowEmpty] = useState(false);
       const [partsTab, setPartsTab] = useState("sections");
       const [partsGroup, setPartsGroup] = useState("system");
       const [leafQuery, setLeafQuery] = useState("");
+      const [leafStatus, setLeafStatus] = useState("all");
       const [tab, setTab] = useState("parts");
 
       const load = useCallback(async () => {
@@ -1149,9 +1190,10 @@ window.__ModuleLoader__.load({
       const loadedTools = enabledTools.reduce((sum, item) => sum + item.tokens, 0);
       const loadedTotal = loadedSections + loadedContexts + loadedTools;
 
-      const filteredTools = toolQuery
+      const searchedTools = toolQuery
         ? prompt.tools.filter((tool) => tool.name.toLowerCase().includes(toolQuery.toLowerCase()))
         : prompt.tools;
+      const filteredTools = searchedTools.filter((tool) => statusMatches(toolStatus, !toolIsOff(tool)));
 
       // 一键精简：把最占地方的三份工具文档降到「简介」档（正文不发，只留一行说明）。
       const heavyKeys = ["mcp:github", "plugin:agent-teams", "plugin:mcp-connector"];
@@ -1269,14 +1311,14 @@ window.__ModuleLoader__.load({
           stats.hidden ? h("span", { className: "is-err" }, "隐藏 ", h("b", null, String(stats.hidden)), " · ≈" + formatTokens(stats.hiddenT)) : null,
           h("span", null, "合计少发 ", h("b", null, "≈" + formatTokens(stats.saved))),
         );
-      const matchLeaf = (item) => {
+      const matchLeaf = (item, kind) => {
         const q = leafQuery.trim().toLowerCase();
-        if (!q) return true;
-        return String(item.name ?? "").toLowerCase().includes(q)
+        const matched = !q || String(item.name ?? "").toLowerCase().includes(q)
           || String(item.preview ?? item.text ?? item.summary ?? "").toLowerCase().includes(q);
+        return matched && statusMatches(leafStatus, ruleFor(kind, item.name)?.enabled !== false);
       };
-      const shownSections = (activeGroup?.list ?? []).filter(matchLeaf);
-      const shownContexts = visibleContexts.filter(matchLeaf);
+      const shownSections = (activeGroup?.list ?? []).filter((item) => matchLeaf(item, "sections"));
+      const shownContexts = visibleContexts.filter((item) => matchLeaf(item, "contexts"));
       const leafSearch = (all, shown) =>
         h("div", { className: "cc-search" },
           h("input", {
@@ -1286,6 +1328,7 @@ window.__ModuleLoader__.load({
             spellCheck: false,
             onChange: (event) => setLeafQuery(event.target.value),
           }),
+          h(StatusFilter, { value: leafStatus, onChange: setLeafStatus, busy }),
           h("span", { className: "cc-muted" }, shown === all ? all + " 项" : shown + " / " + all + " 项"),
         );
 
@@ -1316,7 +1359,7 @@ window.__ModuleLoader__.load({
             { key: "tools", label: "工具定义", badge: `${enabledTools.length}/${prompt.tools.length} 个`, note: `≈${formatTokens(loadedTools)}`, minus: toolStats.saved ? `−≈${formatTokens(toolStats.saved)}` : "" },
           ],
           value: partsTab,
-          onChange: (next) => { setPartsTab(next); setLeafQuery(""); },
+          onChange: (next) => { setPartsTab(next); setLeafQuery(""); setLeafStatus("all"); },
         }),
         partsTab === "sections"
           ? h(
@@ -1327,7 +1370,7 @@ window.__ModuleLoader__.load({
                     items: groupTabs,
                     value: activeGroup?.key ?? "",
                     level: "secondary",
-                    onChange: (next) => { setPartsGroup(next); setLeafQuery(""); },
+                    onChange: (next) => { setPartsGroup(next); setLeafQuery(""); setLeafStatus("all"); },
                   })
                 : null,
               statBar(groupStats(activeGroup?.list ?? []), activeGroup?.list?.length ?? 0),
@@ -1413,6 +1456,7 @@ window.__ModuleLoader__.load({
                   value: toolQuery,
                   onChange: (event) => setToolQuery(event.target.value),
                 }),
+                h(StatusFilter, { value: toolStatus, onChange: setToolStatus, busy }),
                 h("span", { className: "cc-muted" },
                   `${enabledTools.length}/${prompt.tools.length} 已加载 · 少发 ≈${formatTokens(prompt.tools.filter(toolIsOff).reduce((sum, tool) => sum + tool.tokens, 0))}`),
                 h(
@@ -1431,6 +1475,9 @@ window.__ModuleLoader__.load({
               h(
                 "div",
                 { className: "cc-list" },
+                filteredTools.length === 0
+                  ? h("div", { className: "cc-empty is-small" }, toolQuery || toolStatus !== "all" ? "没有匹配的工具。" : "还没有可读的工具。")
+                  : null,
                 filteredTools.map((tool) =>
                   h(
                     "div",
@@ -1670,6 +1717,7 @@ window.__ModuleLoader__.load({
       const [loading, setLoading] = useState(false);
       // 全局筛选：只作用于除概览外的页签，切页不丢；关闭弹窗时清空。
       const [popQuery, setPopQuery] = useState("");
+      const [popStatus, setPopStatus] = useState("all");
       // 弹窗高度以「概览」为基准：切到技能/MCP/工具等短列表时不再跟着内容缩。
       const popRef = useRef(null);
       const [fixedHeight, setFixedHeight] = useState(0);
@@ -1705,6 +1753,7 @@ window.__ModuleLoader__.load({
         setDone("");
         setNote("");
         setPopQuery("");
+        setPopStatus("all");
         void load();
       }, [open, load]);
 
@@ -1731,7 +1780,10 @@ window.__ModuleLoader__.load({
       }, [tab]);
 
       useEffect(() => {
-        if (!open) setPopQuery("");
+        if (!open) {
+          setPopQuery("");
+          setPopStatus("all");
+        }
       }, [open]);
 
       useEffect(() => {
@@ -2106,11 +2158,12 @@ window.__ModuleLoader__.load({
       const capView = (kind) => {
         const entries = kinds[kind] ?? [];
         const needle = popQuery.trim().toLowerCase();
-        const shown = needle
+        const searched = needle
           ? entries.filter((entry) =>
               `${entry.id} ${entry.key} ${entry.summary ?? ""}`.toLowerCase().includes(needle),
             )
           : entries;
+        const shown = searched.filter((entry) => statusMatches(popStatus, modeOfCaps(caps, entry.key) === "on"));
         return h(
           "div",
           null,
@@ -2184,10 +2237,16 @@ window.__ModuleLoader__.load({
       const scopeView = (kind) => {
         const { own, merged, rows } = scopeData(kind);
         const needle = popQuery.trim().toLowerCase();
-        const items = needle
+        const enabledOf = (item) => merged[item.name]?.enabled !== false;
+        const actualOn = (item) => {
+          if (!enabledOf(item)) return false;
+          const key = capKeyOf(item, kind);
+          return !key || modeOfCaps(caps, key) === "on";
+        };
+        const searched = needle
           ? rows.filter((item) => item.name.toLowerCase().includes(needle) || (item.preview ?? "").toLowerCase().includes(needle))
           : rows;
-        const enabledOf = (item) => merged[item.name]?.enabled !== false;
+        const items = searched.filter((item) => statusMatches(popStatus, actualOn(item)));
         return h(
           "div",
           null,
@@ -2376,6 +2435,7 @@ window.__ModuleLoader__.load({
                       )
                     : null,
                 ),
+                h(StatusFilter, { value: popStatus, onChange: setPopStatus }),
                 capActions,
               ),
 
@@ -2484,6 +2544,8 @@ window.__ModuleLoader__.load({
   background-position:calc(100% - 12px) 53%,calc(100% - 8px) 53%;background-size:4px 4px,4px 4px;background-repeat:no-repeat;
 }
 .cc-select:hover{border-color:color-mix(in srgb,var(--cc-ink3) 55%,transparent)}
+.cc-status-select{flex:0 0 auto;height:26px;font-size:11.5px;padding:3px 20px 3px 7px;background-position:calc(100% - 10px) 53%,calc(100% - 6px) 53%}
+.cc-pop-toolbar .cc-status-select{height:26px}
 .cc-menu{position:relative}
 .cc-menu>summary{
   list-style:none;cursor:pointer;font-size:11.5px;color:var(--cc-ink2);
