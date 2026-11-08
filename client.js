@@ -1054,6 +1054,100 @@ window.__ModuleLoader__.load({
       );
     }
 
+    // AI 建议里的理由列会被截断；悬停/点击时用 fixed 气泡展示完整文字，点外部或 Esc 收起。
+    function AiWhy({ text }) {
+      const value = String(text || "").trim();
+      const [open, setOpen] = useState(false);
+      const [pinned, setPinned] = useState(false);
+      const [pos, setPos] = useState(null);
+      const wrapRef = useRef(null);
+      const close = () => {
+        setOpen(false);
+        setPinned(false);
+      };
+      const place = () => {
+        const el = wrapRef.current;
+        if (!el || !value) return;
+        const rect = el.getBoundingClientRect();
+        const width = Math.min(340, Math.max(180, window.innerWidth - 24));
+        const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+        const below = rect.bottom + 220 <= window.innerHeight;
+        const maxHeight = Math.max(80, Math.min(320, below ? window.innerHeight - rect.bottom - 20 : rect.top - 20));
+        setPos(below
+          ? { left, top: rect.bottom + 8, width, maxHeight }
+          : { left, bottom: window.innerHeight - rect.top + 8, width, maxHeight });
+        setOpen(true);
+      };
+      useEffect(() => {
+        if (!open) return undefined;
+        const onDown = (event) => {
+          if (!wrapRef.current?.contains(event.target)) close();
+        };
+        const onKey = (event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            close();
+          }
+        };
+        const onScroll = () => close();
+        document.addEventListener("pointerdown", onDown, true);
+        document.addEventListener("keydown", onKey, true);
+        window.addEventListener("scroll", onScroll, true);
+        window.addEventListener("resize", onScroll);
+        return () => {
+          document.removeEventListener("pointerdown", onDown, true);
+          document.removeEventListener("keydown", onKey, true);
+          window.removeEventListener("scroll", onScroll, true);
+          window.removeEventListener("resize", onScroll);
+        };
+      }, [open]);
+      if (!value) return h("span", { className: "cc-ai-why" }, "");
+      return h("span", {
+        ref: wrapRef,
+        className: `cc-ai-why-wrap${open ? " is-open" : ""}`,
+        onPointerEnter: (event) => {
+          if (event.pointerType === "mouse") place();
+        },
+        onPointerLeave: (event) => {
+          if (event.pointerType === "mouse" && !pinned) close();
+        },
+      },
+        h("span", {
+          className: "cc-ai-why",
+          role: "button",
+          tabIndex: 0,
+          "aria-expanded": open ? "true" : "false",
+          "aria-label": `${value}（悬停或点击查看完整说明）`,
+          onFocus: () => place(),
+          onBlur: () => {
+            if (!pinned) close();
+          },
+          onClick: (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (pinned) close();
+            else {
+              setPinned(true);
+              place();
+            }
+          },
+          onKeyDown: (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            setPinned(true);
+            place();
+          },
+        }, value),
+        open && pos ? h("span", {
+          className: "cc-ai-tip",
+          role: "tooltip",
+          style: pos,
+          onClick: (event) => event.stopPropagation(),
+        }, value) : null,
+      );
+    }
+
     function AiBlock({ scope, sessionId, state, act, busy, title }) {
       const [suggestion, setSuggestion] = useState(null);
       const [picked, setPicked] = useState({});
@@ -1148,7 +1242,7 @@ window.__ModuleLoader__.load({
                   }),
                   h("span", { className: "cc-ai-name" }, item.name),
                   h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action === "on" ? "开启" : item.action === "off" ? "关闭" : item.action),
-                  h("span", { className: "cc-ai-why" }, item.blocked || item.reason || ""),
+                  h(AiWhy, { text: item.blocked || item.reason || "" }),
                   h("span", { className: "cc-ai-save" }, item.savedTokens ? `−${formatTokens(item.savedTokens)}` : ""),
                 ),
               ),
@@ -3110,7 +3204,10 @@ window.__ModuleLoader__.load({
 .cc-ai-action.is-hide{color:var(--cc-err);border-color:color-mix(in srgb,var(--cc-err) 35%,transparent)}
 .cc-ai-action.is-brief{color:#7a5a00;border-color:#d9c58a}
 .cc-ai-action.is-rewrite{color:var(--cc-on-text,#2f5fd4);border-color:#b9c8f5}
-.cc-ai-why{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px}
+.cc-ai-why-wrap{position:relative;display:block;min-width:0;max-width:100%}
+.cc-ai-why{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px;cursor:help}
+.cc-ai-why:focus-visible{outline:2px solid color-mix(in srgb,var(--cc-on) 65%,transparent);outline-offset:2px;border-radius:3px}
+.cc-ai-tip{position:fixed;z-index:90;box-sizing:border-box;padding:8px 10px;border:1px solid var(--cc-line);border-radius:8px;background:var(--cc-bg);box-shadow:0 12px 30px rgba(0,0,0,.2);font-size:11px;line-height:1.55;color:var(--cc-ink2);text-align:left;white-space:normal;overflow:auto;overscroll-behavior:contain}
 .cc-ai-save{font-size:11px;color:var(--cc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .cc-ai-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
 
@@ -3118,7 +3215,7 @@ window.__ModuleLoader__.load({
 .cc-ai-inline-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
 .cc-ai-inline-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:11px}
 .cc-ai-inline-row .cc-ai-why{flex:1 1 auto;min-width:120px}
-@media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-row{grid-template-columns:14px minmax(0,1fr) auto;}.cc-ai-why{grid-column:2/-1}}
+@media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-row{grid-template-columns:14px minmax(0,1fr) auto;}.cc-ai-why-wrap{grid-column:2/-1}}
 @media (prefers-reduced-motion:reduce){.cc-page.cc-pop{animation:none}}
 
 `;
