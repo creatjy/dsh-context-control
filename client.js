@@ -346,9 +346,10 @@ window.__ModuleLoader__.load({
     }
 
     function CapRow({ entry, mode, own, busy, scopeLabel, onSet, onReset }) {
+      const readOnly = entry.readOnly === true;
       return h(
         "div",
-        { className: `cc-cap is-${mode}` },
+        { className: `cc-cap is-${mode}${readOnly ? " is-readonly" : ""}` },
         h(
           "div",
           { className: "cc-cap-main" },
@@ -365,16 +366,23 @@ window.__ModuleLoader__.load({
           { className: "cc-num", title: `当前档位实际发送 ≈${formatTokens(tokenForMode(entry, mode))} / 全量 ≈${formatTokens(entry.tokens ?? 0)}` },
           `≈${formatTokens(tokenForMode(entry, mode))}`,
         ),
-        h(CapSeg, { mode, busy, onSet }),
-        own
-          ? h("button", {
-              type: "button",
-              className: "cc-link",
-              disabled: busy,
-              title: "撤掉本项目的覆盖，回到继承来的档位",
-              onClick: onReset,
-            }, "继承")
-          : h("span", { className: "cc-link is-muted", title: "沿用父项目" }, "继承"),
+        readOnly
+          ? h("span", {
+              className: "cc-seg is-readonly",
+              title: "来自磁盘技能目录的只读条目；没有可写的目录段，不能在这里开关",
+            }, "只读")
+          : h(CapSeg, { mode, busy, onSet }),
+        readOnly
+          ? h("span", { className: "cc-link is-muted", title: "来自磁盘技能目录" }, "磁盘")
+          : own
+            ? h("button", {
+                type: "button",
+                className: "cc-link",
+                disabled: busy,
+                title: "撤掉本项目的覆盖，回到继承来的档位",
+                onClick: onReset,
+              }, "继承")
+            : h("span", { className: "cc-link is-muted", title: "沿用父项目" }, "继承"),
       );
     }
 
@@ -383,6 +391,8 @@ window.__ModuleLoader__.load({
       const brief = modes.filter((mode) => mode === "brief").length;
       const hidden = modes.filter((mode) => mode === "hidden").length;
       const on = entries.length - brief - hidden;
+      const readOnly = entries.filter((entry) => entry.readOnly === true).length;
+      const canBulk = entries.some((entry) => entry.readOnly !== true);
       const tokens = entries.reduce((sum, entry) => sum + (entry.tokens ?? 0), 0);
       const offTokens = entries.reduce(
         (sum, entry) => sum + (modeOfCaps(caps, entry.key) === "on" ? 0 : entry.tokens ?? 0),
@@ -394,7 +404,8 @@ window.__ModuleLoader__.load({
         h("button", {
           type: "button",
           className: "cc-btn is-mini",
-          disabled: busy,
+          disabled: busy || !canBulk,
+          title: canBulk ? undefined : "只读技能没有可写的目录段",
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -404,7 +415,8 @@ window.__ModuleLoader__.load({
         h("button", {
           type: "button",
           className: "cc-btn is-mini",
-          disabled: busy,
+          disabled: busy || !canBulk,
+          title: canBulk ? undefined : "只读技能没有可写的目录段",
           onClick: (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -412,12 +424,13 @@ window.__ModuleLoader__.load({
           },
         }, "全关"),
       );
-      const pills = brief || hidden || offTokens
+      const pills = brief || hidden || readOnly || offTokens
         ? h(
             "span",
             { className: "cc-pills" },
             brief ? h("span", { className: "cc-pill is-brief" }, `简介 ${brief}`) : null,
             hidden ? h("span", { className: "cc-pill is-hidden" }, `隐藏 ${hidden}`) : null,
+            readOnly ? h("span", { className: "cc-pill" }, `只读 ${readOnly}`) : null,
             offTokens ? h("span", { className: "cc-pill" }, `少发 ≈${formatTokens(offTokens)}`) : null,
           )
         : null;
@@ -477,6 +490,7 @@ window.__ModuleLoader__.load({
       { key: "mcp", title: "MCP 服务", hint: "整组工具 + 说明段，按服务整体开关" },
       { key: "plugins", title: "插件", hint: "插件注册的说明段与工具" },
     ];
+    const SKILL_EMPTY_TEXT = "没有检测到技能目录段，也没有在磁盘技能目录里找到技能。安装或启用懒工具箱后，这里会变成可调列表。";
 
     /**
      * 某一层（全局 / 某个项目）对系统提示段或系统工具的规则。
@@ -941,9 +955,7 @@ window.__ModuleLoader__.load({
                 entries,
                 caps,
                 busy,
-                emptyText: group.key === "skills"
-                  ? "没有检测到技能目录段。技能由懒工具箱（toolbox）注入；插件被移除或禁用后，这里会为空。"
-                  : undefined,
+                emptyText: group.key === "skills" ? SKILL_EMPTY_TEXT : undefined,
                 scopeLabel: isGlobal ? "全局" : "本项目",
                 onSet: set,
                 onReset: reset,
@@ -2397,7 +2409,7 @@ window.__ModuleLoader__.load({
                 "div",
                 { className: "cc-empty is-small" },
                 kind === "skills"
-                  ? "没有检测到技能目录段。技能由懒工具箱（toolbox）注入；插件被移除或禁用后，这里会为空。"
+                  ? SKILL_EMPTY_TEXT
                   : "这一类还没有可配置的条目。",
               )
             : shown.length === 0
@@ -2406,11 +2418,12 @@ window.__ModuleLoader__.load({
                   "div",
                   { className: "cc-cap-list" },
                       shown.map((entry) => {
-                        const value = modeOfCaps(caps, entry.key);
-                        const own = Object.prototype.hasOwnProperty.call(sessionCaps, entry.key);
+                        const readOnly = entry.readOnly === true;
+                        const value = readOnly ? "on" : modeOfCaps(caps, entry.key);
+                        const own = !readOnly && Object.prototype.hasOwnProperty.call(sessionCaps, entry.key);
                         return h(
                           "div",
-                          { key: entry.key, className: `cc-cap is-${value} is-compact` },
+                          { key: entry.key, className: `cc-cap is-${value} is-compact${readOnly ? " is-readonly" : ""}` },
                           h(
                             "div",
                             { className: "cc-cap-main" },
@@ -2418,12 +2431,18 @@ window.__ModuleLoader__.load({
                               "div",
                               { className: "cc-cap-title" },
                               h("span", { className: "cc-cap-name", title: entry.summary || entry.key }, entry.id),
+                              readOnly ? h("span", { className: "cc-tag" }, "磁盘") : null,
                               own ? h("span", { className: "cc-tag" }, "本会话") : null,
                             ),
                           ),
                           h("span", { className: "cc-num" }, `≈${formatTokens(entry.tokens)}`),
-                          h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
-                          aiEnabled
+                          readOnly
+                            ? h("span", {
+                                className: "cc-seg is-readonly",
+                                title: "来自磁盘技能目录的只读条目；没有可写的目录段",
+                              }, "只读")
+                            : h(CapSeg, { mode: value, busy, onSet: (next) => setCap(entry.key, next) }),
+                          aiEnabled && !readOnly
                             ? h("button", {
                                 type: "button",
                                 className: "cc-link is-icon",
@@ -2451,7 +2470,9 @@ window.__ModuleLoader__.load({
           h(
             "div",
             { className: "cc-pop-note" },
-            "只作用于本会话，不改项目/工作区；加载 = 正文与工具都发，简介 = 只留一行说明，隐藏 = 连简介都不发，调用要审批。",
+            shown.some((entry) => entry.readOnly)
+              ? `只读技能来自磁盘技能目录，没有可写的目录段；安装或启用懒工具箱后会切换为可调列表。${entries.some((entry) => !entry.readOnly) ? "其余条目仍只作用于本会话。" : ""}`
+              : "只作用于本会话，不改项目/工作区；加载 = 正文与工具都发，简介 = 只留一行说明，隐藏 = 连简介都不发，调用要审批。",
           ),
         );
       };
@@ -2970,6 +2991,8 @@ window.__ModuleLoader__.load({
 
 /* 三档：一条轨道，选中项是实心的，没选的只有文字 */
 .cc-seg{display:inline-flex;align-items:center;padding:2px;border-radius:99px;background:var(--cc-soft);flex:none}
+.cc-seg.is-readonly{padding:3px 9px;font-size:10.5px;color:var(--cc-ink3);border:1px dashed color-mix(in srgb,var(--cc-ink3) 34%,transparent);background:transparent;white-space:nowrap}
+.cc-cap.is-readonly .cc-cap-name{color:var(--cc-ink2)}
 .cc-seg-btn{
   appearance:none;border:0;background:transparent;color:var(--cc-ink3);font:inherit;font-size:11px;line-height:1;
   padding:4px 8px;border-radius:99px;cursor:pointer;transition:background .14s ease,color .14s ease;
