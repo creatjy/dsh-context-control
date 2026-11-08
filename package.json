@@ -4,6 +4,9 @@
   "description": "Context control for DeepSeek Harness: inspect token usage, lazily load skills/MCP/plugins per session, and compact on demand.",
   "type": "module",
   "main": "lib/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "icon": "./icon.svg",
   "exports": {
     ".": {
