@@ -66,6 +66,10 @@ test("suggest 校验、计算 savedTokens、应用与撤销", async () => {
   assert.equal(read.action, "keep");
   assert.match(read.blocked, /受保护/);
 
+  const loaded = service.last({ scope: "global" });
+  assert.equal(loaded.suggestion.id, suggestion.id);
+  assert.equal(loaded.stale, false);
+
   const applied = await service.apply({ suggestionId: suggestion.id, confirm: true });
   assert.equal(applied.applied.length, 2);
   assert.equal(store.global().caps["mcp:github"], "hidden");
@@ -75,6 +79,9 @@ test("suggest 校验、计算 savedTokens、应用与撤销", async () => {
   assert.equal(undone.restored.length, 2);
   assert.equal(store.global().caps["mcp:github"], undefined);
   assert.equal(store.scopeRules("global").sections.demo, undefined);
+
+  store.setAi({ enabled: true });
+  assert.equal(service.last({ scope: "global" }).stale, true);
 });
 
 test("suggest 未启用 / 未确认隐私会被拒绝", async () => {

@@ -1060,6 +1060,7 @@ window.__ModuleLoader__.load({
       const [picked, setPicked] = useState({});
       const [undoToken, setUndoToken] = useState("");
       const [localError, setLocalError] = useState("");
+      const [stale, setStale] = useState(false);
       const ai = state?.ai ?? {};
       const label = title || (scope === "global" ? "AI 最低可用建议" : scope === "project" ? "AI 优化本项目" : scope === "session" ? "AI 优化本会话" : "AI 分析本页");
 
@@ -1081,8 +1082,22 @@ window.__ModuleLoader__.load({
         return h("div", { className: "cc-ai" }, h("span", { className: "cc-ai-note" }, ai.reason || "当前没有可用模型路由。"));
       }
 
+      useEffect(() => {
+        let alive = true;
+        if (suggestion) return undefined;
+        act({ action: "aiLast", scope, sessionId }).then((result) => {
+          const previous = result?.suggestion ?? null;
+          if (!alive || !previous) return;
+          setSuggestion(previous);
+          setStale(result.stale === true);
+          setPicked(Object.fromEntries((previous.items ?? []).filter((item) => item.action !== "keep" && !item.blocked).map((item) => [item.id, true])));
+        });
+        return () => { alive = false; };
+      }, [scope, sessionId, ai.enabled]);
+
       const run = async () => {
         setLocalError("");
+        setStale(false);
         const result = await act({ action: "aiSuggest", scope, sessionId });
         const next = result?.suggestion ?? null;
         setSuggestion(next);
@@ -1122,6 +1137,7 @@ window.__ModuleLoader__.load({
         suggestion
           ? h("div", { className: "cc-ai-card" },
               h("div", { className: "cc-ai-summary" }, suggestion.summary, h("span", { className: "cc-ai-meta" }, `${suggestion.provider}/${suggestion.model}${suggestion.cached ? " · 缓存" : ""}`)),
+              stale ? h("div", { className: "cc-ai-note" }, "配置已变化，应用前请重新分析。") : null,
               suggestion.warnings?.length ? h("div", { className: "cc-ai-warn" }, `部分条目未覆盖：${suggestion.warnings.slice(0, 3).join("；")}`) : null,
               suggestion.items.filter((item) => item.action !== "keep").slice(0, 12).map((item) =>
                 h("label", { key: item.id, className: "cc-ai-row" },
@@ -1138,7 +1154,7 @@ window.__ModuleLoader__.load({
                 ),
               ),
               h("div", { className: "cc-ai-foot" },
-                h("button", { type: "button", className: "cc-btn is-mini is-primary", disabled: busy, onClick: () => void apply() }, "应用选中"),
+                h("button", { type: "button", className: "cc-btn is-mini is-primary", disabled: busy || stale, onClick: () => void apply() }, "应用选中"),
                 h("button", { type: "button", className: "cc-btn is-ghost is-mini", disabled: busy, onClick: () => setSuggestion(null) }, "取消"),
                 h("span", { className: "cc-ai-note" }, suggestion.partial ? "部分建议已过滤，应用前请核对。" : "应用前可先取消勾选。"),
               ),
