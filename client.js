@@ -378,7 +378,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function CapGroup({ entries, caps, busy, scopeLabel, onSet, onReset, onAll, bare, hint }) {
+    function CapGroup({ entries, caps, busy, scopeLabel, onSet, onReset, onAll, bare, hint, emptyText }) {
       const modes = entries.map((entry) => modeOfCaps(caps, entry.key));
       const brief = modes.filter((mode) => mode === "brief").length;
       const hidden = modes.filter((mode) => mode === "hidden").length;
@@ -422,7 +422,7 @@ window.__ModuleLoader__.load({
           )
         : null;
       const list = entries.length === 0
-        ? h("div", { className: "cc-empty is-small" }, "这一组还没有条目。")
+        ? h("div", { className: "cc-empty is-small" }, emptyText || "这一组还没有条目。")
         : h(
             "div",
             { className: "cc-cap-list" },
@@ -941,6 +941,9 @@ window.__ModuleLoader__.load({
                 entries,
                 caps,
                 busy,
+                emptyText: group.key === "skills"
+                  ? "没有检测到技能目录段。技能由懒工具箱（toolbox）注入；插件被移除或禁用后，这里会为空。"
+                  : undefined,
                 scopeLabel: isGlobal ? "全局" : "本项目",
                 onSet: set,
                 onReset: reset,
@@ -2168,7 +2171,13 @@ window.__ModuleLoader__.load({
           "div",
           null,
           entries.length === 0
-            ? h("div", { className: "cc-empty is-small" }, "这一类还没有可配置的条目。")
+            ? h(
+                "div",
+                { className: "cc-empty is-small" },
+                kind === "skills"
+                  ? "没有检测到技能目录段。技能由懒工具箱（toolbox）注入；插件被移除或禁用后，这里会为空。"
+                  : "这一类还没有可配置的条目。",
+              )
             : shown.length === 0
               ? h("div", { className: "cc-empty is-small" }, "没有匹配的条目。")
               : h(
