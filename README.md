@@ -58,7 +58,7 @@ dsh plugin add github:creatjy/dsh-context-control
 或下载 [Release](https://github.com/creatjy/dsh-context-control/releases/latest) 里的 tarball：
 
 ```sh
-dsh plugin add ./dsh-context-control-0.5.30.tgz
+dsh plugin add ./dsh-context-control-0.6.0.tgz
 ```
 
 安装后重启 DSH，再刷新 Web GUI。左栏会出现「上下文管控」，输入框左侧会出现 `上下文 12.7k ▾` 这样的胶囊。
@@ -144,6 +144,18 @@ DSH 的“上下文占用”其实由两部分组成，混在一起看很容易�
 ### 6. 只改「发不发」，不硬改日志
 
 请求侧裁剪挂在 `system-prompt/assemble` 上：先让 DSH 完成装配，再按规则删段、换段。工具开关走 `agent.ctx.tools.restrict({ deny })`，按 agent 分别限制。会话压缩走宿主压缩服务；没有服务时才退回提示词路径。
+
+## AI 建议（0.6.0，默认关闭）
+
+在配置台或胶囊里点一次，才把**当前作用域**的条目元数据交给当前会话的模型：
+
+- 全局页只写全局层，项目页只写当前项目，构成页写当前模式，胶囊只写本会话。
+- 每条建议带 `reason / confidence / risk / 预计少发`；低置信度不会写成确定结论。
+- 先预览、勾选，再「应用选中」；应用后可「撤销」。不会自动改配置，也不改源码。
+- 文件读写、shell、压缩、上下文管控自身等基础能力受保护，只允许保留或简介。
+- 首次启用会提示隐私范围：发送的是条目名称、类型、token 数，不发送会话正文。
+
+完整契约见 [AI建议-架构方案.md](./docs/AI建议-架构方案.md)，界面见 [AI建议-UI设计.md](./docs/AI建议-UI设计.md)。
 
 ## 典型用法
 

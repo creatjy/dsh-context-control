@@ -1055,6 +1055,98 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function AiBlock({ scope, sessionId, state, act, busy, title }) {
+      const [suggestion, setSuggestion] = useState(null);
+      const [picked, setPicked] = useState({});
+      const [undoToken, setUndoToken] = useState("");
+      const [localError, setLocalError] = useState("");
+      const ai = state?.ai ?? {};
+      const label = title || (scope === "global" ? "AI 最低可用建议" : scope === "project" ? "AI 优化本项目" : scope === "session" ? "AI 优化本会话" : "AI 分析本页");
+
+      if (!ai.enabled) {
+        return h("div", { className: "cc-ai" },
+          h("button", {
+            type: "button",
+            className: "cc-btn is-mini",
+            disabled: busy,
+            onClick: async () => {
+              const result = await act({ action: "setAi", enabled: true, privacyAccepted: true });
+              if (!result) setLocalError("启用失败");
+            },
+          }, "启用 AI 建议"),
+          h("span", { className: "cc-ai-note" }, "默认关闭；启用后会把条目名称、类型与 token 数发送给当前会话的模型。"),
+        );
+      }
+      if (!ai.available) {
+        return h("div", { className: "cc-ai" }, h("span", { className: "cc-ai-note" }, ai.reason || "当前没有可用模型路由。"));
+      }
+
+      const run = async () => {
+        setLocalError("");
+        const result = await act({ action: "aiSuggest", scope, sessionId });
+        const next = result?.suggestion ?? null;
+        setSuggestion(next);
+        setUndoToken("");
+        setPicked(Object.fromEntries((next?.items ?? []).filter((item) => item.action !== "keep" && !item.blocked).map((item) => [item.id, true])));
+      };
+      const apply = async () => {
+        if (!suggestion) return;
+        const ids = suggestion.items.filter((item) => picked[item.id] && item.action !== "keep").map((item) => item.id);
+        if (!ids.length) { setLocalError("没有选中任何建议。"); return; }
+        const result = await act({ action: "aiApply", suggestionId: suggestion.id, itemIds: ids, confirm: true });
+        if (result?.undoToken) {
+          setUndoToken(result.undoToken);
+          setSuggestion(null);
+        }
+      };
+      const undo = async () => {
+        if (!undoToken) return;
+        const result = await act({ action: "aiUndo", undoToken });
+        if (result) setUndoToken("");
+      };
+
+      return h("div", { className: "cc-ai" },
+        h("div", { className: "cc-ai-head" },
+          h("button", { type: "button", className: "cc-btn is-mini", disabled: busy, onClick: () => void run() }, busy ? "分析中…" : label),
+          h("span", { className: "cc-ai-note" }, `只写${scope === "session" ? "本会话" : scope === "parts" ? "当前模式" : scope === "project" ? "当前项目" : "全局"}层 · 点击才调用模型`),
+          undoToken ? h("button", { type: "button", className: "cc-btn is-ghost is-mini", disabled: busy, onClick: () => void undo() }, "撤销") : null,
+          h("button", {
+            type: "button",
+            className: "cc-btn is-ghost is-mini",
+            disabled: busy,
+            title: "关闭 AI 建议并清空隐私确认",
+            onClick: () => void act({ action: "setAi", enabled: false, privacyAccepted: false }),
+          }, "关闭 AI"),
+        ),
+        localError ? h("div", { className: "cc-alert" }, localError) : null,
+        suggestion
+          ? h("div", { className: "cc-ai-card" },
+              h("div", { className: "cc-ai-summary" }, suggestion.summary, h("span", { className: "cc-ai-meta" }, `${suggestion.provider}/${suggestion.model}${suggestion.cached ? " · 缓存" : ""}`)),
+              suggestion.warnings?.length ? h("div", { className: "cc-ai-warn" }, `部分条目未覆盖：${suggestion.warnings.slice(0, 3).join("；")}`) : null,
+              suggestion.items.filter((item) => item.action !== "keep").slice(0, 12).map((item) =>
+                h("label", { key: item.id, className: "cc-ai-row" },
+                  h("input", {
+                    type: "checkbox",
+                    checked: Boolean(picked[item.id]),
+                    disabled: Boolean(item.blocked),
+                    onChange: (event) => setPicked((prev) => ({ ...prev, [item.id]: event.target.checked })),
+                  }),
+                  h("span", { className: "cc-ai-name" }, item.name),
+                  h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action),
+                  h("span", { className: "cc-ai-why" }, item.blocked || item.reason || ""),
+                  h("span", { className: "cc-ai-save" }, item.savedTokens ? `−${formatTokens(item.savedTokens)}` : ""),
+                ),
+              ),
+              h("div", { className: "cc-ai-foot" },
+                h("button", { type: "button", className: "cc-btn is-mini is-primary", disabled: busy, onClick: () => void apply() }, "应用选中"),
+                h("button", { type: "button", className: "cc-btn is-ghost is-mini", disabled: busy, onClick: () => setSuggestion(null) }, "取消"),
+                h("span", { className: "cc-ai-note" }, suggestion.partial ? "部分建议已过滤，应用前请核对。" : "应用前可先取消勾选。"),
+              ),
+            )
+          : null,
+      );
+    }
+
     function Panel() {
       const [state, setState] = useState(null);
       const [session, setSession] = useState(null);
@@ -1565,6 +1657,15 @@ window.__ModuleLoader__.load({
 
         h("nav", { className: "cc-tabs", role: "tablist" }, tabs.map(tabButton)),
 
+        h(AiBlock, {
+          scope: tab === "caps" ? "project" : tab === "global" ? "global" : "parts",
+          sessionId,
+          state,
+          act,
+          busy,
+          title: tab === "caps" ? "AI 优化本项目" : tab === "global" ? "AI 最低可用建议" : "AI 分析本页",
+        }),
+
         h(
           "div",
           { className: "cc-view" },
@@ -1718,6 +1819,7 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState("");
       const [done, setDone] = useState("");
       const [loading, setLoading] = useState(false);
+      const [aiOpen, setAiOpen] = useState(false);
       // 全局筛选：只作用于除概览外的页签，切页不丢；关闭弹窗时清空。
       const [popQuery, setPopQuery] = useState("");
       const [popStatus, setPopStatus] = useState("all");
@@ -1750,6 +1852,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         if (!open) return;
         setTab("usage");
+        setAiOpen(false);
         setSumHint(false);
         setChecked({});
         setPreset(false);
@@ -1810,10 +1913,12 @@ window.__ModuleLoader__.load({
           setBusy(true);
           setError("");
           try {
-            await request(payload);
+            const result = await request(payload);
             await load();
+            return result;
           } catch (err) {
             setError(messageOf(err));
+            return null;
           } finally {
             setBusy(false);
           }
@@ -2383,6 +2488,7 @@ window.__ModuleLoader__.load({
                 used == null ? "还没读到计量" : `窗口占用${contextWindow ? ` · 共 ${formatTokens(contextWindow)}` : ""}`),
             ),
             h("div", { className: "cc-row-gap" },
+              h("button", { type: "button", className: `cc-btn is-ghost is-mini${aiOpen ? " is-on" : ""}`, disabled: loading, onClick: () => setAiOpen((value) => !value) }, "AI"),
               h("button", { type: "button", className: "cc-btn is-ghost is-mini", disabled: loading, onClick: () => void load() }, loading ? "…" : "刷新"),
               h("button", { type: "button", className: "cc-btn is-ghost is-mini", onClick: () => overlay.set({ open: false }) }, "关闭"),
             ),
@@ -2450,20 +2556,23 @@ window.__ModuleLoader__.load({
 
           h(
             "div",
-            { className: `cc-pop-body${tab === "usage" ? " is-usage" : ""}` },
+            { className: `cc-pop-body${tab === "usage" && !aiOpen ? " is-usage" : ""}` },
+            aiOpen
+              ? h(AiBlock, { scope: "session", sessionId, state, act, busy, title: "AI 优化本会话" })
+              : null,
             error ? h("div", { className: "cc-alert" }, error) : null,
             done ? h("div", { className: "cc-alert is-ok" }, done) : null,
-            tab === "usage" ? usageView : null,
-            tab === "usage" && !compaction.available
+            !aiOpen && tab === "usage" ? usageView : null,
+            !aiOpen && tab === "usage" && !compaction.available
               ? h("p", { className: "cc-hint is-tight" }, compaction.reason || "宿主压缩不可用，改用 steer 指令。")
               : null,
-            tab === "usage" ? lastCompactLine : null,
-            tab === "usage" ? autoCompactRow : null,
-            tab === "skills" ? capView("skills") : null,
-            tab === "mcp" ? capView("mcp") : null,
-            tab === "plugins" ? capView("plugins") : null,
-            tab === "sections" ? scopeView("sections") : null,
-            tab === "tools" ? scopeView("tools") : null,
+            !aiOpen && tab === "usage" ? lastCompactLine : null,
+            !aiOpen && tab === "usage" ? autoCompactRow : null,
+            !aiOpen && tab === "skills" ? capView("skills") : null,
+            !aiOpen && tab === "mcp" ? capView("mcp") : null,
+            !aiOpen && tab === "plugins" ? capView("plugins") : null,
+            !aiOpen && tab === "sections" ? scopeView("sections") : null,
+            !aiOpen && tab === "tools" ? scopeView("tools") : null,
           ),
 
           tab === "usage"
@@ -2966,6 +3075,29 @@ window.__ModuleLoader__.load({
 .cc-link.is-icon{width:20px;justify-content:center;padding:0;text-align:center;font-size:12px}
 .cc-alert.is-ok{margin:0 0 8px}
 @keyframes cc-rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* AI 建议：默认折叠成一条，点击才请求；不是聊天框。 */
+.cc-ai{
+  display:flex;flex-direction:column;gap:8px;margin:10px 26px 4px;padding:10px 12px;
+  border:1px solid var(--cc-line);border-radius:8px;background:color-mix(in srgb,var(--cc-bg) 97%,var(--cc-soft));
+}
+.cc-ai-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cc-ai-note{font-size:11px;line-height:1.5;color:var(--cc-ink2)}
+.cc-ai-card{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--cc-soft)}
+.cc-ai-summary{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11.5px;font-weight:600;color:var(--cc-ink)}
+.cc-ai-meta{font-size:10.5px;font-weight:400;color:var(--cc-ink2);white-space:nowrap}
+.cc-ai-warn{font-size:11px;color:var(--cc-warn-text,#7a5a00)}
+.cc-ai-row{display:grid;grid-template-columns:14px minmax(0,1.4fr) auto minmax(0,2fr) auto;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--cc-soft);font-size:11.5px}
+.cc-ai-row input{width:13px;height:13px;margin:0}
+.cc-ai-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink)}
+.cc-ai-action{font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:99px;border:1px solid var(--cc-line);white-space:nowrap}
+.cc-ai-action.is-hide{color:var(--cc-err);border-color:color-mix(in srgb,var(--cc-err) 35%,transparent)}
+.cc-ai-action.is-brief{color:#7a5a00;border-color:#d9c58a}
+.cc-ai-action.is-rewrite{color:var(--cc-on-text,#2f5fd4);border-color:#b9c8f5}
+.cc-ai-why{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cc-ink2);font-size:11px}
+.cc-ai-save{font-size:11px;color:var(--cc-ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.cc-ai-foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
+@media (max-width:760px){.cc-ai{margin:10px 16px 4px}.cc-ai-row{grid-template-columns:14px minmax(0,1fr) auto;}.cc-ai-why{grid-column:2/-1}}
 @media (prefers-reduced-motion:reduce){.cc-page.cc-pop{animation:none}}
 
 `;
