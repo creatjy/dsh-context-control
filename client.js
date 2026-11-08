@@ -279,7 +279,7 @@ window.__ModuleLoader__.load({
           ),
           item.preview ? h("div", { className: "cc-row-preview" }, item.preview) : null,
         ),
-        h(Token, { tokens: item.tokens, muted: !enabled }),
+        h(Token, { tokens: enabled ? item.tokens : 0, muted: !enabled }),
         h(
           "div",
           { className: "cc-row-actions" },
@@ -494,13 +494,22 @@ window.__ModuleLoader__.load({
       }, [state, scopeId]);
       const [query, setQuery] = useState("");
       const [status, setStatus] = useState("all");
-      const base = all.filter((item) => kind === "tools" || item.tokens > 0 || own[item.name]);
-      const itemOn = (item) => {
-        const rule = own[item.name] ?? {};
-        const enabled = (own[item.name] ? rule.enabled : merged[item.name]?.enabled) !== false;
-        const capMode = kind === "tools" && item.capKey ? modeOfCaps(scopeCaps, item.capKey) : "on";
-        return enabled && capMode === "on";
+      // 段落没有自己的 capKey，用能力目录的 sectionNames 反查，才能把「所属能力已关」
+      // 也算成关闭；否则全局/项目页会显示 26/26，实际请求已经少了。
+      const sectionCaps = useMemo(() => {
+        const map = {};
+        for (const entry of [...(state.capabilities?.skills ?? []), ...(state.capabilities?.mcp ?? []), ...(state.capabilities?.plugins ?? [])]) {
+          for (const name of entry.sectionNames ?? []) map[name] = entry.key;
+        }
+        return map;
+      }, [state]);
+      const capKeyOf = (item) => item?.capKey ?? (kind === "sections" ? sectionCaps[item?.name] : null);
+      const capModeOf = (item) => {
+        const key = capKeyOf(item);
+        return key ? modeOfCaps(scopeCaps, key) : "on";
       };
+      const base = all.filter((item) => kind === "tools" || item.tokens > 0 || own[item.name]);
+      const itemOn = (item) => merged[item.name]?.enabled !== false && capModeOf(item) === "on";
       const needle = query.trim().toLowerCase();
       const searched = needle
         ? base.filter((item) => item.name.toLowerCase().includes(needle) || (item.preview ?? "").toLowerCase().includes(needle))
@@ -529,11 +538,15 @@ window.__ModuleLoader__.load({
         ),
         items.length === 0 ? h("div", { className: "cc-empty is-small" }, "没有匹配的条目。") : null,
         items.map((item) => {
-          const rule = own[item.name] ?? {};
-          const enabled = (own[item.name] ? rule.enabled : merged[item.name]?.enabled) !== false;
-          const capMode = kind === "tools" && item.capKey ? modeOfCaps(scopeCaps, item.capKey) : "on";
+          // 「有没有自己的覆盖」只看 own，用来打「本项目/全局」标签；
+          // 实际是否生效必须看 merged（global + 继承链 + 本项目），否则
+          // 只改过正文、没写 enabled 的规则会误显示为开着。
+          const rule = merged[item.name] ?? {};
+          const enabled = rule.enabled !== false;
+          const capKey = capKeyOf(item);
+          const capMode = capModeOf(item);
           const capOff = capMode !== "on";
-          const shown = rule.text ?? merged[item.name]?.text ?? item.text ?? "";
+          const shown = rule.text ?? item.text ?? "";
           const tokens = item.tokens ?? 0;
           return editing === item.name && kind === "sections"
             ? h(Editor, {
@@ -549,11 +562,11 @@ window.__ModuleLoader__.load({
               })
             : h(
                 "div",
-                { key: item.name, className: `cc-row${enabled && !capOff ? "" : " is-off"}`, title: capOff ? `所属能力 ${item.capKey} 被关闭` : undefined },
+                { key: item.name, className: `cc-row${enabled && !capOff ? "" : " is-off"}`, title: capOff ? `所属能力 ${capKey} 被关闭` : undefined },
                 h(Switch, {
                   checked: enabled && !capOff,
                   disabled: busy || capOff,
-                  title: capOff ? `所属能力 ${item.capKey} 被关闭，先在上方能力页打开` : undefined,
+                  title: capOff ? `所属能力 ${capKey} 被关闭，先在上方能力页打开` : undefined,
                   onChange: (next) => set(item.name, { enabled: next }),
                 }),
                 h(
@@ -569,7 +582,7 @@ window.__ModuleLoader__.load({
                   ),
                   h("div", { className: "cc-row-preview" }, item.preview || (item.description ?? "") || "（空）"),
                 ),
-                h("span", { className: "cc-num" }, `≈${formatTokens(enabled ? tokens : 0)}`),
+                h("span", { className: "cc-num" }, `≈${formatTokens(enabled && !capOff ? tokens : 0)}`),
                 h(
                   "div",
                   { className: "cc-row-actions" },
@@ -639,17 +652,26 @@ window.__ModuleLoader__.load({
 
       const scopeSectionCount = (state.prompt?.sections ?? []).filter((item) => item.tokens > 0).length;
       const scopeToolCount = (state.prompt?.tools ?? []).length;
+      // 段落没有 capKey，按能力目录的 sectionNames 反查；否则「所属能力关了」
+      // 在项目/全局页会显示成仍然加载。
+      const sectionCaps = useMemo(() => {
+        const map = {};
+        for (const entry of [...(state.capabilities?.skills ?? []), ...(state.capabilities?.mcp ?? []), ...(state.capabilities?.plugins ?? [])]) {
+          for (const name of entry.sectionNames ?? []) map[name] = entry.key;
+        }
+        return map;
+      }, [state]);
       const scopeCapsFor = (scope) => (scope === "global" ? state.global?.caps ?? {} : selected.resolvedCaps ?? {});
+      const capKeyOf = (item, kind) => item?.capKey ?? (kind === "sections" ? sectionCaps[item?.name] : null);
       const scopeCapOff = (scope, kind, item) => {
-        if (kind !== "tools" || !item.capKey) return false;
-        const caps = scopeCapsFor(scope);
-        return modeOfCaps(caps, item.capKey) !== "on";
+        const key = capKeyOf(item, kind);
+        if (!key) return false;
+        return modeOfCaps(scopeCapsFor(scope), key) !== "on";
       };
       const scopeTokens = (kind, scope) => {
         const merged = selected.resolved?.[kind] ?? {};
-        const ownRules = selected[kind] ?? {};
         return (kind === "sections" ? state.prompt?.sections ?? [] : state.prompt?.tools ?? []).reduce((sum, item) => {
-          const rule = ownRules[item.name] ?? merged[item.name] ?? {};
+          const rule = merged[item.name] ?? {};
           if (rule.enabled === false) return sum;
           if (scopeCapOff(scope, kind, item)) return sum;
           return sum + (item.tokens ?? 0);
@@ -657,9 +679,8 @@ window.__ModuleLoader__.load({
       };
       const scopeLoadedCount = (kind, scope) => {
         const merged = selected.resolved?.[kind] ?? {};
-        const ownRules = selected[kind] ?? {};
         return (kind === "sections" ? state.prompt?.sections ?? [] : state.prompt?.tools ?? []).filter((item) => {
-          const rule = ownRules[item.name] ?? merged[item.name] ?? {};
+          const rule = merged[item.name] ?? {};
           if (rule.enabled === false) return false;
           return !scopeCapOff(scope, kind, item);
         }).length;
@@ -673,9 +694,7 @@ window.__ModuleLoader__.load({
         for (const item of items) {
           const t = item.tokens ?? 0;
           full += t;
-          const capDown = kind === "tools" && item.capKey
-            ? modeOfCaps(scopeCapsFor(isGlobal ? "global" : "local"), item.capKey) !== "on"
-            : false;
+          const capDown = scopeCapOff(isGlobal ? "global" : "local", kind, item);
           if (rules[item.name]?.enabled === false || capDown) { off += 1; offT += t; } else loaded += t;
         }
         return { loaded, full, off, offT };

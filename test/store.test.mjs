@@ -89,6 +89,31 @@ test("联动 auto 标记持久化，重启后仍可撤销", () => {
   assert.equal(reloaded.state.projects[0].tools["agent_teams_create"], undefined);
 });
 
+test("全局/项目/会话按层覆盖，项目与会话互不影响", () => {
+  const { store } = tempStore();
+  store.ensureProject({ id: "p2", name: "P2", cwd: "/tmp/p2" });
+  store.setScopeRule("global", "sections", "demo", { enabled: false });
+  store.setScopeRule("workspace", "sections", "demo", { enabled: true });
+  store.setScopeRule("p2", "sections", "demo", { enabled: false });
+  store.setSessionRule("s1", "sections", "demo", { enabled: true });
+  store.setSessionRule("s2", "sections", "demo", { enabled: false });
+
+  assert.equal(store.layersFor("workspace").sections.demo.enabled, true);
+  assert.equal(store.layersFor("p2").sections.demo.enabled, false);
+  assert.equal(store.layersForSession("workspace", "s1").sections.demo.enabled, true);
+  assert.equal(store.layersForSession("workspace", "s2").sections.demo.enabled, false);
+
+  store.setCap("global", "plugin:demo", "hidden");
+  store.setCap("workspace", "plugin:demo", true);
+  store.setCap("p2", "plugin:demo", "hidden");
+  store.setSessionCap("s1", "plugin:demo", false);
+
+  assert.equal(store.capsFor("workspace")["plugin:demo"], true);
+  assert.equal(store.capsFor("p2")["plugin:demo"], "hidden");
+  assert.equal(store.sessionCaps("s1")["plugin:demo"], false);
+  assert.deepEqual(store.sessionCaps("s2"), {});
+});
+
 test("applyOps 一次写盘，setCap + setScopeRule 同批生效", () => {
   const { store, file } = tempStore();
   const before = store.revision;
