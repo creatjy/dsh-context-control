@@ -27,10 +27,20 @@ dsh plugin add github:creatjy/dsh-context-control
 或下载 [Release](https://github.com/creatjy/dsh-context-control/releases/latest) 里的 tarball：
 
 ```sh
-dsh plugin add ./dsh-context-control-0.5.27.tgz
+dsh plugin add ./dsh-context-control-0.5.28.tgz
 ```
 
 安装后重启 DSH，再刷新 Web GUI。左栏会出现「上下文管控」，输入框左侧会出现 `上下文 12.7k ▾` 这样的胶囊。
+
+### GitHub Packages（npm）
+
+同一份代码也会发布到 GitHub Packages，包名为 `@creatjy/dsh-context-control`。GitHub Packages 的 npm registry 需要先认证（即使是公开包）：
+
+```sh
+npm login --scope=@creatjy --auth-type=legacy --registry=https://npm.pkg.github.com
+npm config set @creatjy:registry https://npm.pkg.github.com
+dsh plugin add @creatjy/dsh-context-control
+```
 
 ## 两处入口
 
