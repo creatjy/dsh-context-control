@@ -1,0 +1,54 @@
+{
+  "name": "dsh-context-control",
+  "version": "0.5.26",
+  "description": "DeepSeek 插件：用一个或多个「模式」管理上下文——按模块（系统内容 / 技能 / 注入 / 工具 / 工具结果 / 助手消息）查看每个模块占用的 token，逐项开关与编辑；会话内还有入口可勾选模块并注入压缩提示词。",
+  "type": "module",
+  "main": "lib/index.js",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "icon.svg",
+    "lib",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "context",
+    "context-window",
+    "token",
+    "compaction"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "author": "creatjy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/creatjy/dsh-context-control.git"
+  },
+  "homepage": "https://github.com/creatjy/dsh-context-control#readme",
+  "bugs": {
+    "url": "https://github.com/creatjy/dsh-context-control/issues"
+  }
+}
