@@ -1,0 +1,5 @@
+# 上下文管控：插进宿主，不单独占一个插件位（bundle patch 只做 insert）。
+- insert:
+    - id: context-control
+      name: dsh-context-control
+      inject: [systemPrompt, tools, webServer]
