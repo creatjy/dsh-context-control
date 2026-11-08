@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+:root{
+  --line:#e6e7eb; --soft:rgba(0,0,0,.055); --ink:#1b1b1f; --ink2:#5b616b; --ink3:#8b9099;
+  --bg:#fff; --hover:#f2f3f6; --on:#3b6ef0; --on-text:#2f5fd4; --warn:#a97a08; --warn-text:#7a5a00; --err:#c0392b; --purple:#8b7cd8; --green:#3f9c83;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef0f3;font-family:var(--font);color:var(--ink);-webkit-font-smoothing:antialiased}
+.page{background:var(--bg);width:1040px;padding:22px 26px 24px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.title{font-size:14px;font-weight:650}
+.top-right{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--ink2)}
+.top-right b{color:var(--ink);font-weight:650}
+.bar{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--soft);margin-bottom:12px}
+.bar i{display:block;height:100%}
+.b1{width:58%;background:var(--on)}.b2{width:8%;background:var(--purple)}.b3{width:34%;background:var(--green)}
+.legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--ink2);margin:-4px 0 12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--soft);font-size:12px;font-weight:600;color:var(--ink2)}
+.tab{padding:0 0 9px;border-bottom:2px solid transparent}
+.tab.on{color:var(--ink);border-bottom-color:var(--on)}
+.ai-strip{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--soft);min-height:37px}
+.ai-btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border:1px solid rgba(59,110,240,.28);border-radius:6px;background:#fff;color:var(--on-text);font:600 11.5px var(--font);cursor:default}
+.ai-badge{font-size:11px;font-weight:700;letter-spacing:.03em;background:rgba(59,110,240,.1);border-radius:4px;padding:1px 4px}
+.ai-scope{font-size:11px;color:var(--ink2)}
+.ai-sum{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink2)}
+.ai-sum b{color:var(--ink);font-weight:650}
+.ghost{font-size:11px;color:var(--ink2);padding:2px 5px;border-radius:5px}
+.ghost:hover{background:var(--hover)}
+.card{border:1px solid var(--line);border-radius:8px;margin:10px 0 4px;overflow:hidden}
+.card-head{padding:8px 10px 7px;border-bottom:1px solid var(--soft);display:flex;align-items:center;gap:10px}
+.card-title{font-size:11.5px;font-weight:650}
+.card-meta{font-size:11px;color:var(--ink2);margin-left:auto}
+.card-body{max-height:150px;overflow:hidden}
+.rec{display:grid;grid-template-columns:18px 1fr 58px 100px;align-items:center;gap:8px;padding:5px 10px;font-size:11.5px;border-bottom:1px solid var(--soft)}
+.rec:last-child{border-bottom:0}
+.rec .box{width:13px;height:13px;border-radius:3px;border:1px solid var(--line);background:#fff}
+.rec .box.on{background:var(--on);border-color:var(--on);position:relative}
+.rec .box.on:after{content:"";position:absolute;left:3px;top:1px;width:4px;height:7px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.rec small{font-size:11px;color:var(--ink2)}
+.rec .reason{color:var(--ink2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list{margin-top:9px}
+.group{font-size:11.5px;color:var(--ink2);margin:10px 0 3px;display:flex;justify-content:space-between}
+.group b{color:var(--ink);font-weight:650}
+.cap{display:grid;grid-template-columns:1fr auto 52px 132px;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid var(--soft);font-size:11.5px}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:1px 6px;font-size:11px;line-height:16px;border:1px solid transparent;white-space:nowrap}
+.pill.hide{color:var(--err);border-color:rgba(192,57,43,.22);background:rgba(192,57,43,.055)}
+.pill.brief{color:var(--warn-text);border-color:rgba(169,122,8,.24);background:rgba(169,122,8,.06)}
+.pill.keep{color:var(--ink2);border-color:var(--line);background:#fff}
+.pill.low{border-style:dashed}
+.num{font-size:11px;color:var(--ink2);text-align:right;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;background:var(--soft);border-radius:99px;padding:2px;gap:1px}
+.seg span{font-size:11px;padding:2px 6px;border-radius:99px;color:var(--ink2)}
+.seg .on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line)}
+.seg .hide{color:var(--err);font-weight:600}
+.note{font-size:11px;color:var(--ink2);margin-top:10px;line-height:1.5}
+/* capsule */
+#capsule{width:430px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px rgba(10,12,18,.18),0 2px 8px rgba(10,12,18,.08);overflow:hidden}
+.cap-head{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid var(--soft)}
+.cap-total{font-size:14px;font-weight:650}
+.cap-sub{font-size:11px;color:var(--ink2)}
+.cap-head .right{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink2)}
+.ai-mini{height:20px;padding:0 6px;border:1px solid rgba(59,110,240,.28);border-radius:5px;background:#fff;color:var(--on-text);font:600 11px var(--font)}
+.cap-tabs{display:flex;gap:13px;padding:0 12px 2px;height:38px;align-items:center;border-bottom:1px solid var(--soft);font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden}
+.cap-tabs b{color:var(--ink);font-weight:650;border-bottom:2px solid var(--on);height:38px;display:inline-flex;align-items:center}
+.sheet-head{display:flex;align-items:center;gap:7px;padding:6px 12px;min-height:30px;border-bottom:1px solid var(--soft);font-size:11px}
+.sheet-title{font-weight:650;color:var(--ink)}
+.sheet-scope{color:var(--ink2);font-size:11px}
+.back{margin-left:auto;color:var(--ink2);font-size:11px}
+.sheet-body{padding:9px 12px 10px}
+.focus{width:100%;height:28px;border:1px solid var(--line);border-radius:7px;padding:0 8px;font:11px var(--font);color:var(--ink2);background:#fff;margin-bottom:8px}
+.sheet-sum{display:flex;align-items:center;font-size:11px;color:var(--ink2);margin:2px 0 6px}
+.sheet-sum b{color:var(--ink)}
+.sug{display:grid;grid-template-columns:1fr auto 54px 46px;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--soft);font-size:11px}
+.sug .why{display:block;font-size:11px;color:var(--ink2);margin-top:2px}
+.sug .num{font-size:11px}
+.apply{font-size:11px;color:var(--on-text);padding:2px 5px;border:1px solid rgba(59,110,240,.2);border-radius:5px;text-align:center}
+.sheet-foot{display:flex;align-items:center;gap:7px;padding:8px 12px 9px;border-top:1px solid var(--soft);background:#fff}
+.btn{height:26px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:#fff;font:11px var(--font);color:var(--ink)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+.btn.blue{color:var(--on-text);border-color:rgba(59,110,240,.26)}
+.foot-note{margin-left:auto;font-size:11px;color:var(--ink2)}
+</style>
+</head>
+<body>
+<div id="panel" class="page">
+  <div class="top">
+    <div class="title">全局上下文</div>
+    <div class="top-right">本次请求 <b>≈31.0k</b><span>刷新</span></div>
+  </div>
+  <div class="bar"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--on)"></i>系统内容 ≈2.5k</span>
+    <span><i class="dot" style="background:var(--purple)"></i>运行时注入 ≈347</span>
+    <span><i class="dot" style="background:var(--green)"></i>工具定义 ≈28.1k</span>
+  </div>
+  <div class="tabs"><span class="tab">构成</span><span class="tab">项目</span><span class="tab on">全局</span></div>
+
+  <div class="ai-strip">
+    <span class="ai-btn"><span class="ai-badge">AI</span>最低可用建议</span>
+    <span class="ai-scope">只分析全局层 · 不影响项目/会话</span>
+    <span class="ai-sum"><b>保留 18 · 简介 9 · 隐藏 22</b><span>预计 31.0k → 9.8k</span><span class="ghost">重新分析</span></span>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><span class="card-title">AI 建议 · 全局</span><span class="card-meta">上次 14:32 · 覆盖 49/49 项</span></div>
+    <div class="card-body">
+      <div class="rec"><span class="box on"></span><span><b>browser</b> <small>工具</small><br><span class="reason">≈4.2k，当前会话 0 次调用，非基础工具</span></span><span class="pill hide">隐藏</span><span class="num">−3.8k</span></div>
+      <div class="rec"><span class="box on"></span><span><b>mcp:github</b> <small>MCP</small><br><span class="reason">46 个工具与文件工具功能重叠</span></span><span class="pill brief">简介</span><span class="num">−12.9k</span></div>
+      <div class="rec"><span class="box"></span><span><b>plugin-upgrade</b> <small>技能</small><br><span class="reason">≈8.9k，当前任务未使用；风险中</span></span><span class="pill hide low">可考虑隐藏</span><span class="num">−8.4k</span></div>
+    </div>
+  </div>
+
+  <div class="list">
+    <div class="group"><span>技能 / MCP / 插件</span><b>49 项 · ≈31.0k</b></div>
+    <div class="cap"><span class="name">browser</span><span class="pill hide">AI 隐藏</span><span class="num">≈4.2k</span><span class="seg"><span>加载</span><span>简介</span><span class="hide">隐藏</span></span></div>
+    <div class="cap"><span class="name">mcp:github</span><span class="pill brief">AI 简介</span><span class="num">≈14.4k</span><span class="seg"><span>加载</span><span class="on">简介</span><span>隐藏</span></span></div>
+    <div class="cap"><span class="name">plugin-upgrade</span><span class="pill keep">AI 保留</span><span class="num">≈8.9k</span><span class="seg"><span class="on">加载</span><span>简介</span><span>隐藏</span></span></div>
+    <div class="group"><span>提示段 / 工具</span><b>2 项 · ≈3.3k</b></div>
+    <div class="cap"><span class="name">harness:identity</span><span class="pill keep">AI 保留</span><span class="num">≈13</span><span class="seg"><span class="on">开启</span><span>关闭</span></span></div>
+  </div>
+  <div class="note">已保护 5 项基础工具：文件读写、终端、上下文管控、压缩、询问。建议不改变这些项的开关。</div>
+</div>
+
+<div id="capsule" style="margin-top:28px">
+  <div class="cap-head">
+    <span class="cap-total">≈12.7k</span><span class="cap-sub">窗口占用 · 共 1049k</span>
+    <span class="right"><span class="ai-mini">AI</span><span>刷新</span><span>关闭</span></span>
+  </div>
+  <div class="cap-tabs"><b>概览</b><span>技能 16</span><span>MCP 0</span><span>插件 1</span><span>提示段 20/20</span><span>工具 3/3</span></div>
+  <div class="sheet-head"><span class="sheet-title">AI 优化 · 本会话</span><span class="sheet-scope">只写本会话</span><span class="back">返回</span></div>
+  <div class="sheet-body">
+    <input class="focus" placeholder="可选：说明本次任务，帮助判断哪些用不上…">
+    <div class="sheet-sum"><b>建议关闭 3 项 · 预计少发 4.2k</b><span style="margin-left:auto;color:var(--ink2)">覆盖 20/20 项</span></div>
+    <div class="sug"><span><b>工具说明</b><span class="why">19 项定义 · 本会话 0 次调用</span></span><span class="pill hide">隐藏</span><span class="num">≈3.0k</span><span class="apply">应用</span></div>
+    <div class="sug"><span><b>mcp:github</b><span class="why">46 个工具 · 与文件工具重叠</span></span><span class="pill brief">简介</span><span class="num">≈14.4k</span><span class="apply">应用</span></div>
+    <div class="sug"><span><b>plugin-upgrade</b><span class="why">≈8.9k · 当前任务未使用</span></span><span class="pill hide low">可考虑隐藏</span><span class="num">≈8.9k</span><span class="apply">应用</span></div>
+  </div>
+  <div class="sheet-foot"><span class="btn">返回</span><span class="btn primary">应用选中</span><span class="btn blue">只看建议</span><span class="foot-note">更改只影响本会话</span></div>
+</div>
+</body>
+</html>
