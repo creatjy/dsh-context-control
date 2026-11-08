@@ -2225,7 +2225,7 @@ window.__ModuleLoader__.load({
 
       const vw = typeof window === "undefined" ? 1200 : window.innerWidth || 1200;
       const vh = typeof window === "undefined" ? 800 : window.innerHeight || 800;
-      const width = Math.min(430, vw - 24);
+      const width = Math.min(516, vw - 24);
       const left = rect ? Math.min(Math.max(12, rect.left), vw - width - 12) : 20;
       const bottom = rect ? Math.max(12, vh - rect.top + 10) : 20;
       const maxHeight = Math.max(240, Math.min(560, vh - bottom - 16));
