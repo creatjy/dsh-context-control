@@ -53,6 +53,42 @@ test("v3 读入后第一次写盘升级 v4，ai/revision 不丢", () => {
   assert.equal(onDisk.ai.privacyAcceptedAt, "2026-11-08T00:00:00Z");
 });
 
+test("能力联动写入段落/工具规则，并可撤销", () => {
+  const { store, file } = tempStore();
+  const linked = { sections: ["agent-teams:usage"], tools: ["agent_teams_create"] };
+  assert.equal(store.setScopeLinked("workspace", linked, true), 2);
+  assert.equal(store.state.projects[0].sections["agent-teams:usage"].enabled, true);
+  assert.equal(store.state.projects[0].sections["agent-teams:usage"].auto, true);
+  assert.equal(store.state.projects[0].tools["agent_teams_create"].enabled, true);
+
+  store.setScopeRule("workspace", "sections", "agent-teams:usage", { text: "自定义说明" });
+  assert.equal(store.state.projects[0].sections["agent-teams:usage"].auto, undefined);
+  assert.equal(store.clearScopeLinked("workspace", linked), 1);
+  assert.equal(store.state.projects[0].sections["agent-teams:usage"].text, "自定义说明");
+  assert.equal(store.state.projects[0].tools["agent_teams_create"], undefined);
+
+  store.setSessionLinked("session-1", linked, false);
+  assert.equal(store.state.sessions["session-1"].sections["agent-teams:usage"].enabled, false);
+  assert.equal(store.state.sessions["session-1"].tools["agent_teams_create"].enabled, false);
+  store.clearSessionLinked("session-1", linked);
+  assert.equal(store.state.sessions["session-1"], undefined);
+
+  const onDisk = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(onDisk.projects[0].sections["agent-teams:usage"].text, "自定义说明");
+});
+
+test("联动 auto 标记持久化，重启后仍可撤销", () => {
+  const { store, file } = tempStore();
+  const linked = { sections: ["agent-teams:usage"], tools: ["agent_teams_create"] };
+  store.setScopeLinked("workspace", linked, true);
+  const reloaded = new ModeStore({ dataDir: path.dirname(file) });
+  assert.equal(reloaded.state.projects[0].sections["agent-teams:usage"].auto, true);
+  assert.equal(reloaded.state.projects[0].tools["agent_teams_create"].auto, true);
+  assert.equal(reloaded.clearScopeLinked("workspace", linked), 2);
+  assert.equal(reloaded.state.projects[0].sections["agent-teams:usage"], undefined);
+  assert.equal(reloaded.state.projects[0].tools["agent_teams_create"], undefined);
+});
+
 test("applyOps 一次写盘，setCap + setScopeRule 同批生效", () => {
   const { store, file } = tempStore();
   const before = store.revision;
