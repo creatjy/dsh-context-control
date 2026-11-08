@@ -1148,7 +1148,7 @@ window.__ModuleLoader__.load({
                     onChange: (event) => setPicked((prev) => ({ ...prev, [item.id]: event.target.checked })),
                   }),
                   h("span", { className: "cc-ai-name" }, item.name),
-                  h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action),
+                  h("span", { className: `cc-ai-action is-${item.action}` }, item.action === "hide" ? "隐藏" : item.action === "brief" ? "简介" : item.action === "rewrite" ? "改写" : item.action === "on" ? "开启" : item.action === "off" ? "关闭" : item.action),
                   h("span", { className: "cc-ai-why" }, item.blocked || item.reason || ""),
                   h("span", { className: "cc-ai-save" }, item.savedTokens ? `−${formatTokens(item.savedTokens)}` : ""),
                 ),
