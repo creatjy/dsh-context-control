@@ -1,0 +1,43 @@
+name: Publish to GitHub Packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@creatjy"
+
+      - name: Build scoped package for GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/pkg && mkdir -p /tmp/pkg
+          rsync -a --exclude .git --exclude node_modules ./ /tmp/pkg/
+          cd /tmp/pkg
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          pkg.name = "@creatjy/dsh-context-control";
+          pkg.publishConfig = { registry: "https://npm.pkg.github.com" };
+          fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          let patch = fs.readFileSync("cordis.patch.yml", "utf8");
+          patch = patch.replace(/name: dsh-context-control/g, 'name: "@creatjy/dsh-context-control"');
+          fs.writeFileSync("cordis.patch.yml", patch);
+          NODE
+          printf '//npm.pkg.github.com/:_authToken=%s\n@creatjy:registry=https://npm.pkg.github.com\n' "${NODE_AUTH_TOKEN}" > .npmrc
+          npm publish
