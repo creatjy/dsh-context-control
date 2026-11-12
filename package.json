@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-control",
-  "version": "0.6.9",
+  "version": "0.6.10",
   "description": "Context control for DeepSeek Harness: inspect token usage, lazily load skills/MCP/plugins per session, and compact on demand.",
   "type": "module",
   "main": "lib/index.js",
@@ -35,6 +35,10 @@
     "compaction"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

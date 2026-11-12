@@ -82,8 +82,10 @@ dsh plugin add github:creatjy/dsh-context-control
 或下载 [Release](https://github.com/creatjy/dsh-context-control/releases/latest) 里的 tarball：
 
 ```sh
-dsh plugin add ./dsh-context-control-0.6.9.tgz
+dsh plugin add ./dsh-context-control-0.6.10.tgz
 ```
+
+需要 DSH `0.2.2-rc.1` 或 `0.2.2-rc.2`；插件在 `package.json` 里用 `engines.dsh` 声明兼容 `0.2.2-rc.1` 起的 `0.2.x`，并在 rc2 上实测。
 
 安装后重启 DSH，再刷新 Web GUI。左栏会出现「上下文管控」，输入框左侧会出现 `上下文 12.7k ▾` 这样的胶囊。
 
